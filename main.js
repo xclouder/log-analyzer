@@ -74,6 +74,11 @@ function filterLogs(content, config) {
     const lines = content.split('\n');
     const filteredLines = [];
 
+    // 格式化行号的函数，使用空格代替前导零
+    function formatLineNumber(num) {
+        return `[Line:${num.toString().padStart(6, ' ')}]`;
+    }
+
     // 如果没有过滤条件，返回添加行号的非空行内容
     if (!config.patterns || config.patterns.length === 0) {
         console.log('No filter patterns provided, returning non-empty lines with line numbers');
@@ -83,32 +88,41 @@ function filterLogs(content, config) {
                 number: index + 1 
             }))
             .filter(item => item.line !== '')
-            .map(item => `[Line:${item.number.toString().padStart(6, '0')}] ${item.line}`)
+            .map(item => `${formatLineNumber(item.number)} ${item.line}`)
             .join('\n');
     }
 
+    console.log('Processing filter patterns:', config.patterns);
+
     // 预处理过滤条件
     const processedPatterns = config.patterns.map(({ pattern, type }) => {
+        console.log(`Processing pattern: "${pattern}" of type: ${type}`);
         if (type === 'regex') {
             try {
+                const regex = new RegExp(pattern);
+                console.log('Successfully created regex pattern:', regex);
                 return {
-                    pattern: new RegExp(pattern),
+                    pattern: regex,
                     type: 'regex'
                 };
             } catch (error) {
                 console.error('Invalid regex pattern:', pattern, error);
                 // 如果正则表达式无效，降级为文本匹配
+                console.log('Falling back to text matching for invalid regex');
                 return {
                     pattern: pattern,
                     type: 'text'
                 };
             }
         }
+        console.log('Using text matching pattern:', pattern);
         return {
             pattern: pattern,
             type: 'text'
         };
     });
+
+    console.log('Processed patterns:', processedPatterns);
 
     lines.forEach((line, lineIndex) => {
         const trimmedLine = line.trim();
@@ -117,22 +131,27 @@ function filterLogs(content, config) {
         }
 
         const lineNumber = lineIndex + 1;
+        console.log(`\nProcessing line ${lineNumber}:`, trimmedLine);
 
         // 任何一个模式匹配成功就保留该行（OR关系）
-        const shouldKeep = processedPatterns.some(({ pattern, type }) => {
+        const shouldKeep = processedPatterns.some(({ pattern, type }, index) => {
             if (type === 'regex') {
-                return pattern.test(trimmedLine);
+                const matches = pattern.test(trimmedLine);
+                console.log(`Pattern ${index + 1} (regex): "${pattern}" - Match result:`, matches);
+                return matches;
             } else {
-                return trimmedLine.includes(pattern);
+                const matches = trimmedLine.toLowerCase().includes(pattern.toLowerCase());
+                console.log(`Pattern ${index + 1} (text): "${pattern}" - Match result:`, matches);
+                return matches;
             }
         });
 
         if (shouldKeep) {
             // 添加行号标记并保留该行
-            filteredLines.push(`[Line:${lineNumber.toString().padStart(6, '0')}] ${trimmedLine}`);
-            console.log('Line matched filter pattern:', trimmedLine);
+            filteredLines.push(`${formatLineNumber(lineNumber)} ${trimmedLine}`);
+            console.log('Line matched and kept');
         } else {
-            console.log('Line filtered out:', trimmedLine);
+            console.log('Line filtered out');
         }
     });
 
