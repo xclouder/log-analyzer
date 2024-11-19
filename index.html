@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>LogAnalyzer</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: #1e1e1e;
+        }
+        #toolbar {
+            height: 40px;
+            background-color: #333;
+            display: flex;
+            align-items: center;
+            padding: 0 10px;
+        }
+        #toolbar button {
+            background-color: #444;
+            border: none;
+            color: white;
+            padding: 8px 15px;
+            margin-right: 10px;
+            cursor: pointer;
+            border-radius: 3px;
+        }
+        #toolbar button:hover {
+            background-color: #555;
+        }
+        #editor {
+            width: 100vw;
+            height: calc(100vh - 40px);
+        }
+        #file-info {
+            color: #888;
+            margin-left: auto;
+            font-family: Arial, sans-serif;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div id="toolbar">
+        <button onclick="openFile()">打开文件</button>
+        <button onclick="saveFile()">保存</button>
+        <div id="file-info"></div>
+    </div>
+    <div id="editor"></div>
+
+    <script src="node_modules/monaco-editor/min/vs/loader.js"></script>
+    <script>
+        require.config({ paths: { 'vs': 'node_modules/monaco-editor/min/vs' }});
+        
+        let editor = null;
+        require(['vs/editor/editor.main'], function() {
+            editor = monaco.editor.create(document.getElementById('editor'), {
+                value: '',
+                language: 'plaintext',
+                theme: 'vs-dark',
+                automaticLayout: true,
+                wordWrap: 'on',
+                fontSize: 14,
+                minimap: {
+                    enabled: true
+                }
+            });
+        });
+
+        let currentFilePath = null;
+        const fileInfo = document.getElementById('file-info');
+
+        async function openFile() {
+            const result = await window.electronAPI.openFile();
+            if (result) {
+                const { content, filePath } = result;
+                currentFilePath = filePath;
+                editor.setValue(content);
+                updateFileInfo(filePath);
+            }
+        }
+
+        async function saveFile() {
+            if (!currentFilePath) return;
+            
+            const content = editor.getValue();
+            const success = await window.electronAPI.saveFile({
+                filePath: currentFilePath,
+                content
+            });
+
+            if (success) {
+                console.log('File saved successfully');
+            } else {
+                console.error('Failed to save file');
+            }
+        }
+
+        function updateFileInfo(filePath) {
+            if (filePath) {
+                const fileName = filePath.split('\\').pop();
+                fileInfo.textContent = `当前文件: ${fileName}`;
+            } else {
+                fileInfo.textContent = '';
+            }
+        }
+    </script>
+</body>
+</html>
