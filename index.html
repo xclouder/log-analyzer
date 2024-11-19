@@ -8,29 +8,40 @@
             padding: 0;
             overflow: hidden;
             background-color: #1e1e1e;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
         }
         #toolbar {
-            height: 40px;
             background-color: #333;
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .toolbar-row {
             display: flex;
             align-items: center;
-            padding: 0 10px;
+            gap: 10px;
         }
-        #toolbar button {
+        button {
             background-color: #444;
             border: none;
             color: white;
             padding: 8px 15px;
-            margin-right: 10px;
             cursor: pointer;
             border-radius: 3px;
         }
-        #toolbar button:hover {
+        button:hover {
             background-color: #555;
         }
-        #editor {
-            width: 100vw;
-            height: calc(100vh - 40px);
+        input[type="text"] {
+            background-color: #444;
+            border: none;
+            color: white;
+            padding: 5px 10px;
+            border-radius: 3px;
+            width: 200px;
         }
         #file-info {
             color: #888;
@@ -38,21 +49,112 @@
             font-family: Arial, sans-serif;
             font-size: 12px;
         }
+        .editors-container {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+        #editor, #filtered-editor {
+            flex: 1;
+            height: 100%;
+        }
+        .divider {
+            width: 4px;
+            background: #333;
+            cursor: col-resize;
+        }
+        .filter-container {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin: 10px 0;
+        }
+        .filter-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background-color: #2a2a2a;
+            padding: 10px;
+            border-radius: 5px;
+        }
+        .filter-item input[type="text"] {
+            flex-grow: 1;
+        }
+        .filter-type {
+            background-color: #444;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        .filter-type:hover {
+            background-color: #555;
+        }
+        .filter-type option {
+            background-color: #444;
+            color: white;
+        }
+        .delete-filter {
+            background-color: #d32f2f;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        .delete-filter:hover {
+            background-color: #b71c1c;
+        }
+        .add-filter {
+            background-color: #2e7d32;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 3px;
+            cursor: pointer;
+            align-self: flex-start;
+        }
+        .add-filter:hover {
+            background-color: #1b5e20;
+        }
     </style>
 </head>
 <body>
     <div id="toolbar">
-        <button onclick="openFile()">打开文件</button>
-        <button onclick="saveFile()">保存</button>
-        <div id="file-info"></div>
+        <div class="toolbar-row">
+            <button onclick="openFile()">打开文件</button>
+            <button onclick="saveFile()">保存</button>
+            <div id="file-info"></div>
+        </div>
+        <div class="filter-container" id="filter-container">
+            <div class="filter-item">
+                <select class="filter-type">
+                    <option value="text">文本匹配</option>
+                    <option value="regex">正则匹配</option>
+                </select>
+                <input type="text" class="filter-pattern" placeholder="输入过滤条件">
+                <button class="delete-filter" onclick="removeFilter(this)">删除</button>
+            </div>
+            <button class="add-filter" onclick="addFilter()">添加过滤条件</button>
+        </div>
+        <div class="toolbar-row">
+            <button onclick="applyFilter()">应用过滤</button>
+        </div>
     </div>
-    <div id="editor"></div>
+    <div class="editors-container">
+        <div id="editor"></div>
+        <div class="divider"></div>
+        <div id="filtered-editor"></div>
+    </div>
 
     <script src="node_modules/monaco-editor/min/vs/loader.js"></script>
     <script>
         require.config({ paths: { 'vs': 'node_modules/monaco-editor/min/vs' }});
         
         let editor = null;
+        let filteredEditor = null;
+
         require(['vs/editor/editor.main'], function() {
             editor = monaco.editor.create(document.getElementById('editor'), {
                 value: '',
@@ -65,6 +167,50 @@
                     enabled: true
                 }
             });
+
+            filteredEditor = monaco.editor.create(document.getElementById('filtered-editor'), {
+                value: '// 过滤后的内容将显示在这里',
+                language: 'plaintext',
+                theme: 'vs-dark',
+                automaticLayout: true,
+                wordWrap: 'on',
+                fontSize: 14,
+                minimap: {
+                    enabled: true
+                },
+                readOnly: true
+            });
+
+            // 实现分割条拖动
+            const divider = document.querySelector('.divider');
+            let isDragging = false;
+            
+            divider.addEventListener('mousedown', (e) => {
+                isDragging = true;
+                document.addEventListener('mousemove', onMouseMove);
+                document.addEventListener('mouseup', onMouseUp);
+            });
+
+            function onMouseMove(e) {
+                if (!isDragging) return;
+                
+                const container = document.querySelector('.editors-container');
+                const containerRect = container.getBoundingClientRect();
+                const percentage = ((e.clientX - containerRect.left) / containerRect.width) * 100;
+                
+                if (percentage > 20 && percentage < 80) {
+                    document.getElementById('editor').style.flex = `${percentage}`;
+                    document.getElementById('filtered-editor').style.flex = `${100 - percentage}`;
+                    editor.layout();
+                    filteredEditor.layout();
+                }
+            }
+
+            function onMouseUp() {
+                isDragging = false;
+                document.removeEventListener('mousemove', onMouseMove);
+                document.removeEventListener('mouseup', onMouseUp);
+            }
         });
 
         let currentFilePath = null;
@@ -93,6 +239,66 @@
                 console.log('File saved successfully');
             } else {
                 console.error('Failed to save file');
+            }
+        }
+
+        function addFilter() {
+            const container = document.getElementById('filter-container');
+            const filterItem = document.createElement('div');
+            filterItem.className = 'filter-item';
+            filterItem.innerHTML = `
+                <select class="filter-type">
+                    <option value="text">文本匹配</option>
+                    <option value="regex">正则匹配</option>
+                </select>
+                <input type="text" class="filter-pattern" placeholder="输入过滤条件">
+                <button class="delete-filter" onclick="removeFilter(this)">删除</button>
+            `;
+            container.insertBefore(filterItem, container.lastElementChild);
+        }
+
+        function removeFilter(button) {
+            const container = document.getElementById('filter-container');
+            if (container.getElementsByClassName('filter-item').length > 1) {
+                button.parentElement.remove();
+            }
+        }
+
+        function getFilterConfig() {
+            const filterItems = document.getElementsByClassName('filter-item');
+            const patterns = Array.from(filterItems).map(item => {
+                const pattern = item.querySelector('.filter-pattern').value.trim();
+                const type = item.querySelector('.filter-type').value;
+                return pattern ? { pattern, type } : null;
+            }).filter(item => item !== null);
+            
+            return {
+                patterns: patterns
+            };
+        }
+
+        async function applyFilter() {
+            try {
+                console.log('Applying filter...');
+                const config = getFilterConfig();
+                console.log('Sending config to main process:', config);
+                
+                console.log('Current editor content length:', editor.getValue().length);
+                const result = await window.electronAPI.applyFilter(config);
+                console.log('Got filter result:', result);
+                
+                if (result.success) {
+                    console.log('Filter successful, content length:', result.content.length);
+                    console.log('First 100 chars of filtered content:', result.content.substring(0, 100));
+                    filteredEditor.setValue(result.content);
+                    console.log('Editor updated');
+                } else {
+                    console.error('Filter failed:', result.error);
+                    filteredEditor.setValue(`错误: ${result.error || '过滤失败'}`);
+                }
+            } catch (err) {
+                console.error('过滤错误:', err);
+                filteredEditor.setValue(`错误: ${err.message || '过滤失败'}`);
             }
         }
 
