@@ -1,6 +1,7 @@
-const { app, BrowserWindow, ipcMain, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, Menu } = require('electron');
 const path = require('path');
-const fs = require('fs').promises;
+const fs = require('fs');  // 添加fs模块的引入
+const fsPromises = fs.promises;  // 使用 fs.promises 以支持异步操作
 
 let mainWindow;
 let currentLogContent = '';
@@ -18,6 +19,7 @@ function createWindow() {
 
     mainWindow.loadFile('index.html');
     mainWindow.webContents.openDevTools();
+    createMenu();
 }
 
 app.whenReady().then(() => {
@@ -44,7 +46,7 @@ ipcMain.handle('dialog:openFile', async () => {
     if (!result.canceled && result.filePaths.length > 0) {
         const filePath = result.filePaths[0];
         try {
-            const content = await fs.readFile(filePath, 'utf8');
+            const content = await fsPromises.readFile(filePath, 'utf8');
             currentLogContent = content;
             return {
                 content,
@@ -60,7 +62,7 @@ ipcMain.handle('dialog:openFile', async () => {
 
 ipcMain.handle('dialog:saveFile', async (event, { filePath, content }) => {
     try {
-        await fs.writeFile(filePath, content, 'utf8');
+        await fsPromises.writeFile(filePath, content, 'utf8');
         currentLogContent = content;
         return true;
     } catch (err) {
@@ -174,13 +176,13 @@ function filterLogs(content, config) {
         }
 
         const lineNumber = lineIndex + 1;
-        console.log(`\nProcessing line ${lineNumber}:`, trimmedLine);
+        // console.log(`\nProcessing line ${lineNumber}:`, trimmedLine);
 
         // 任何一个模式匹配成功就保留该行（OR关系）
         const shouldKeep = processedPatterns.some(({ pattern, type }, index) => {
             if (type === 'line') {
                 const matches = pattern(lineNumber);
-                console.log(`Pattern ${index + 1} (line): Line ${lineNumber} - Match result:`, matches);
+                // console.log(`Pattern ${index + 1} (line): Line ${lineNumber} - Match result:`, matches);
                 return matches;
             } else if (type === 'regex') {
                 const matches = pattern.test(trimmedLine);
@@ -196,9 +198,9 @@ function filterLogs(content, config) {
         if (shouldKeep) {
             // 添加行号标记并保留该行
             filteredLines.push(`${formatLineNumber(lineNumber)} ${trimmedLine}`);
-            console.log('Line matched and kept');
+            // console.log('Line matched and kept');
         } else {
-            console.log('Line filtered out');
+            // console.log('Line filtered out');
         }
     });
 
@@ -228,3 +230,102 @@ ipcMain.handle('filter:apply', async (event, config) => {
         };
     }
 });
+
+// 过滤配置相关的IPC处理
+ipcMain.handle('filter:save-config', async (event, config, filePath) => {
+    try {
+        console.log('Saving config to file:', config);
+        await fsPromises.writeFile(filePath, JSON.stringify(config, null, 2));
+        return { success: true };
+    } catch (err) {
+        console.error('Error saving filter config:', err);
+        return { success: false, error: err.message };
+    }
+});
+
+ipcMain.handle('filter:load-config', async (event, filePath) => {
+    try {
+        console.log('Loading config from file:', filePath);
+        const configData = await fsPromises.readFile(filePath, 'utf-8');
+        const config = JSON.parse(configData);
+        console.log('Loaded config:', config);
+        
+        if (!config || !config.patterns) {
+            throw new Error('Invalid config format');
+        }
+        
+        mainWindow.webContents.send('filter:load-config-result', config);
+        return { success: true, config };
+    } catch (err) {
+        console.error('Error loading filter config:', err);
+        return { success: false, error: err.message };
+    }
+});
+
+// 创建应用程序菜单
+function createMenu() {
+    const menu = Menu.buildFromTemplate([
+        {
+            label: '文件',
+            submenu: [
+                {
+                    label: '打开文件',
+                    click: () => {
+                        mainWindow.webContents.send('menu:open-file');
+                    }
+                },
+                {
+                    label: '保存结果',
+                    click: () => {
+                        mainWindow.webContents.send('menu:save-file');
+                    }
+                },
+                { type: 'separator' },
+                {
+                    label: '保存过滤配置',
+                    click: async () => {
+                        const result = await dialog.showSaveDialog(mainWindow, {
+                            title: '保存过滤配置',
+                            filters: [
+                                { name: 'JSON', extensions: ['json'] }
+                            ]
+                        });
+                        
+                        if (!result.canceled) {
+                            mainWindow.webContents.send('filter:save-config-dialog', result.filePath);
+                        }
+                    }
+                },
+                {
+                    label: '加载过滤配置',
+                    click: async () => {
+                        const result = await dialog.showOpenDialog(mainWindow, {
+                            title: '加载过滤配置',
+                            filters: [
+                                { name: 'JSON', extensions: ['json'] }
+                            ],
+                            properties: ['openFile']
+                        });
+                        
+                        if (!result.canceled && result.filePaths.length > 0) {
+                            const configPath = result.filePaths[0];
+                            try {
+                                console.log('Reading config file:', configPath);
+                                const configData = await fsPromises.readFile(configPath, 'utf-8');
+                                const config = JSON.parse(configData);
+                                console.log('Sending config to renderer:', config);
+                                mainWindow.webContents.send('filter:load-config-result', config);
+                            } catch (err) {
+                                console.error('Error loading filter config:', err);
+                                dialog.showErrorBox('错误', '加载配置文件失败: ' + err.message);
+                            }
+                        }
+                    }
+                },
+                { type: 'separator' },
+                { role: 'quit' }
+            ]
+        }
+    ]);
+    Menu.setApplicationMenu(menu);
+}

@@ -124,27 +124,12 @@
     <div id="toolbar">
         <div class="toolbar-row">
             <button onclick="openFile()">打开文件</button>
-            <button onclick="saveFile()">保存</button>
-            <div id="file-info"></div>
+            <button onclick="saveFile()">保存结果</button>
+            <span id="file-info"></span>
         </div>
         <div class="filter-container" id="filter-container">
-            <div id="filters">
-                <!-- 初始过滤条件 -->
-                <div class="filter-row">
-                    <select class="filter-type">
-                        <option value="text">文本匹配</option>
-                        <option value="regex">正则匹配</option>
-                        <option value="line">行号范围</option>
-                    </select>
-                    <input type="text" class="filter-pattern" placeholder="输入过滤条件（行号格式：1-100 或 1,2,3 或 >100 或 <100）">
-                    <button class="remove-filter" onclick="removeFilter(this)">删除</button>
-                </div>
-            </div>
-            <button onclick="addFilter()">添加过滤条件</button>
         </div>
-        <div class="toolbar-row">
-            <button onclick="applyFilter()">应用过滤</button>
-        </div>
+        <button class="add-filter" onclick="addFilter()">添加过滤条件</button>
     </div>
     <div class="editors-container">
         <div id="editor"></div>
@@ -154,33 +139,21 @@
 
     <script src="node_modules/monaco-editor/min/vs/loader.js"></script>
     <script>
-        require.config({ paths: { 'vs': 'node_modules/monaco-editor/min/vs' }});
-        
-        let editor = null;
-        let filteredEditor = null;
+        let editor, filteredEditor;
+        let currentFilePath = null;
+        let currentFilterConfig = {
+            patterns: []
+        };
+        const fileInfo = document.getElementById('file-info');
 
-        require(['vs/editor/editor.main'], function() {
+        // 初始化编辑器
+        require.config({ paths: { vs: 'node_modules/monaco-editor/min/vs' } });
+        require(['vs/editor/editor.main'], function () {
             editor = monaco.editor.create(document.getElementById('editor'), {
                 value: '',
                 language: 'text',
                 theme: 'vs-dark',
-                automaticLayout: true,
-                minimap: {
-                    enabled: false
-                },
-                contextmenu: true
-            });
-
-            // 注册过滤当前行的上下文菜单操作
-            editor.addAction({
-                id: 'filter-current-line',
-                label: '过滤当前行',
-                contextMenuGroupId: 'filter',
-                contextMenuOrder: 1,
-                run: function(ed) {
-                    const position = ed.getPosition();
-                    addLineFilter(position.lineNumber.toString());
-                }
+                automaticLayout: true
             });
 
             filteredEditor = monaco.editor.create(document.getElementById('filtered-editor'), {
@@ -188,43 +161,214 @@
                 language: 'text',
                 theme: 'vs-dark',
                 automaticLayout: true,
-                minimap: {
-                    enabled: false
-                },
                 readOnly: true
             });
+        });
 
-            // 分隔条拖动逻辑
-            const divider = document.querySelector('.divider');
-            let isDragging = false;
-            
-            divider.addEventListener('mousedown', function (e) {
-                isDragging = true;
-                document.addEventListener('mousemove', onMouseMove);
-                document.addEventListener('mouseup', onMouseUp);
-            });
-            
-            function onMouseMove(e) {
-                if (!isDragging) return;
+        // 监听菜单事件
+        window.electronAPI.onMenuOpenFile(() => {
+            openFile();
+        });
+
+        window.electronAPI.onMenuSaveFile(() => {
+            saveFile();
+        });
+
+        window.electronAPI.onFilterSaveConfig(async (event, filePath) => {
+            try {
+                // 在保存之前更新当前配置
+                updateCurrentConfig();
                 
-                const container = document.querySelector('.editors-container');
-                const containerRect = container.getBoundingClientRect();
-                const percentage = ((e.clientX - containerRect.left) / containerRect.width) * 100;
-                
-                if (percentage > 20 && percentage < 80) {
-                    document.getElementById('editor').style.width = percentage + '%';
-                    document.getElementById('filtered-editor').style.width = (100 - percentage) + '%';
-                    editor.layout();
-                    filteredEditor.layout();
+                // 检查是否有过滤条件
+                if (!currentFilterConfig.patterns || currentFilterConfig.patterns.length === 0) {
+                    const shouldContinue = confirm('当前没有过滤条件，是否继续保存？');
+                    if (!shouldContinue) {
+                        return;
+                    }
                 }
-            }
-            
-            function onMouseUp() {
-                isDragging = false;
-                document.removeEventListener('mousemove', onMouseMove);
-                document.removeEventListener('mouseup', onMouseUp);
+                
+                console.log('Saving filter config:', currentFilterConfig);
+                const result = await window.electronAPI.saveFilterConfig(currentFilterConfig, filePath);
+                if (!result.success) {
+                    console.error('保存配置失败:', result.error);
+                    alert('保存配置失败: ' + result.error);
+                } else {
+                    console.log('配置保存成功');
+                }
+            } catch (err) {
+                console.error('保存配置错误:', err);
+                alert('保存配置错误: ' + err.message);
             }
         });
+
+        window.electronAPI.onFilterLoadConfig(async (event, config) => {
+            try {
+                console.log('Loading filter config:', config);
+                if (!config || !config.patterns) {
+                    throw new Error('无效的配置格式');
+                }
+                currentFilterConfig = config;
+                updateFilterUI(); // 更新过滤器UI
+                await applyFilter(); // 应用过滤器
+            } catch (err) {
+                console.error('应用配置错误:', err);
+                alert('应用配置错误: ' + err.message);
+            }
+        });
+
+        // 更新当前配置
+        function updateCurrentConfig() {
+            const filterItems = document.querySelectorAll('.filter-item');
+            console.log('Found filter items:', filterItems.length);
+            
+            const filters = Array.from(filterItems).map(item => {
+                const type = item.querySelector('.filter-type').value;
+                const pattern = item.querySelector('.filter-pattern').value;
+                console.log('Filter item:', { type, pattern });
+                return { type, pattern };
+            }).filter(item => item.pattern.trim() !== ''); // 只保留有内容的过滤条件
+
+            currentFilterConfig = {
+                patterns: filters
+            };
+            
+            console.log('Current config updated:', currentFilterConfig);
+            return currentFilterConfig;
+        }
+
+        // 更新过滤器UI
+        function updateFilterUI() {
+            console.log('Updating filter UI with config:', currentFilterConfig);
+            const container = document.getElementById('filter-container');
+            
+            // 清空容器
+            while (container.firstChild) {
+                container.removeChild(container.firstChild);
+            }
+
+            if (currentFilterConfig && currentFilterConfig.patterns && currentFilterConfig.patterns.length > 0) {
+                currentFilterConfig.patterns.forEach((filter, index) => {
+                    console.log('Creating filter item:', filter);
+                    const filterItem = document.createElement('div');
+                    filterItem.className = 'filter-item';
+                    filterItem.innerHTML = `
+                        <select class="filter-type">
+                            <option value="text" ${filter.type === 'text' ? 'selected' : ''}>文本匹配</option>
+                            <option value="regex" ${filter.type === 'regex' ? 'selected' : ''}>正则匹配</option>
+                            <option value="line" ${filter.type === 'line' ? 'selected' : ''}>行号范围</option>
+                        </select>
+                        <input type="text" class="filter-pattern" value="${filter.pattern || ''}" placeholder="输入过滤条件">
+                        <button class="delete-filter" onclick="deleteFilter(this)">删除</button>
+                    `;
+
+                    const typeSelect = filterItem.querySelector('.filter-type');
+                    const patternInput = filterItem.querySelector('.filter-pattern');
+
+                    // 更新输入框提示
+                    updatePlaceholder(typeSelect, patternInput);
+
+                    // 添加事件监听器
+                    typeSelect.addEventListener('change', () => {
+                        updatePlaceholder(typeSelect, patternInput);
+                        updateCurrentConfig();
+                        applyFilter();
+                    });
+
+                    patternInput.addEventListener('input', () => {
+                        updateCurrentConfig();
+                        applyFilter();
+                    });
+
+                    container.appendChild(filterItem);
+                });
+            }
+            console.log('Filter UI updated, current config:', currentFilterConfig);
+        }
+
+        // 更新输入框提示
+        function updatePlaceholder(select, input) {
+            if (!select || !input) return;
+            
+            switch (select.value) {
+                case 'text':
+                    input.placeholder = '输入要匹配的文本';
+                    break;
+                case 'regex':
+                    input.placeholder = '输入正则表达式';
+                    break;
+                case 'line':
+                    input.placeholder = '输入行号范围（如：1-100 或 1,2,3 或 >100 或 <100）';
+                    break;
+                default:
+                    input.placeholder = '输入过滤条件';
+            }
+        }
+
+        // 添加过滤条件
+        function addFilter() {
+            const container = document.getElementById('filter-container');
+            const filterItem = document.createElement('div');
+            filterItem.className = 'filter-item';
+            filterItem.innerHTML = `
+                <select class="filter-type">
+                    <option value="text">文本匹配</option>
+                    <option value="regex">正则匹配</option>
+                    <option value="line">行号范围</option>
+                </select>
+                <input type="text" class="filter-pattern" placeholder="输入过滤条件">
+                <button class="delete-filter" onclick="deleteFilter(this)">删除</button>
+            `;
+
+            const typeSelect = filterItem.querySelector('.filter-type');
+            const patternInput = filterItem.querySelector('.filter-pattern');
+
+            // 更新输入框提示
+            updatePlaceholder(typeSelect, patternInput);
+
+            // 添加事件监听器
+            typeSelect.addEventListener('change', () => {
+                updatePlaceholder(typeSelect, patternInput);
+                updateCurrentConfig();
+                applyFilter();
+            });
+
+            patternInput.addEventListener('input', () => {
+                updateCurrentConfig();
+                applyFilter();
+            });
+
+            container.appendChild(filterItem);
+            console.log('Added new filter item');
+            updateCurrentConfig();
+        }
+
+        // 删除过滤条件
+        function deleteFilter(element) {
+            const filterItem = element.closest('.filter-item');
+            if (filterItem) {
+                filterItem.remove();
+                console.log('Deleted filter item');
+                updateCurrentConfig();
+                applyFilter();
+            }
+        }
+
+        // 应用过滤器
+        async function applyFilter() {
+            updateCurrentConfig();
+            try {
+                const result = await window.electronAPI.filterLogs(currentFilterConfig);
+                if (result.success) {
+                    filteredEditor.setValue(result.content);
+                } else {
+                    console.error('过滤失败:', result.error);
+                    filteredEditor.setValue(`错误: ${result.error || '过滤失败'}`);
+                }
+            } catch (err) {
+                console.error('过滤错误:', err);
+                filteredEditor.setValue(`错误: ${err.message || '过滤失败'}`);
+            }
+        }
 
         function addLineFilter(pattern) {
             // 创建新的过滤条件
@@ -280,9 +424,6 @@
             applyFilter();
         }
 
-        let currentFilePath = null;
-        const fileInfo = document.getElementById('file-info');
-
         async function openFile() {
             const result = await window.electronAPI.openFile();
             if (result) {
@@ -309,91 +450,9 @@
             }
         }
 
-        function addFilter() {
-            const filterRow = document.createElement('div');
-            filterRow.className = 'filter-row';
-            filterRow.innerHTML = `
-                <select class="filter-type">
-                    <option value="text">文本匹配</option>
-                    <option value="regex">正则匹配</option>
-                    <option value="line">行号范围</option>
-                </select>
-                <input type="text" class="filter-pattern" placeholder="输入过滤条件">
-                <button class="remove-filter" onclick="removeFilter(this)">删除</button>
-            `;
-            document.getElementById('filters').appendChild(filterRow);
-
-            // 添加过滤类型变更事件监听
-            const typeSelect = filterRow.querySelector('.filter-type');
-            const patternInput = filterRow.querySelector('.filter-pattern');
-            typeSelect.addEventListener('change', () => updatePlaceholder(typeSelect, patternInput));
-        }
-
-        function updatePlaceholder(typeSelect, patternInput) {
-            if (typeSelect.value === 'line') {
-                patternInput.placeholder = '输入行号范围（如：1-100 或 1,2,3 或 >100 或 <100）';
-            } else if (typeSelect.value === 'regex') {
-                patternInput.placeholder = '输入正则表达式';
-            } else {
-                patternInput.placeholder = '输入要匹配的文本';
-            }
-        }
-
-        // 为初始的过滤条件添加事件监听
-        document.addEventListener('DOMContentLoaded', () => {
-            const initialTypeSelect = document.querySelector('.filter-type');
-            const initialPatternInput = document.querySelector('.filter-pattern');
-            initialTypeSelect.addEventListener('change', () => updatePlaceholder(initialTypeSelect, initialPatternInput));
-        });
-
-        function removeFilter(button) {
-            const container = document.getElementById('filters');
-            if (container.getElementsByClassName('filter-row').length > 1) {
-                button.parentElement.remove();
-            }
-        }
-
-        function getFilterConfig() {
-            const filterRows = document.getElementsByClassName('filter-row');
-            const patterns = Array.from(filterRows).map(item => {
-                const pattern = item.querySelector('.filter-pattern').value.trim();
-                const type = item.querySelector('.filter-type').value;
-                return pattern ? { pattern, type } : null;
-            }).filter(item => item !== null);
-            
-            return {
-                patterns: patterns
-            };
-        }
-
-        async function applyFilter() {
-            try {
-                console.log('Applying filter...');
-                const config = getFilterConfig();
-                console.log('Sending config to main process:', config);
-                
-                console.log('Current editor content length:', editor.getValue().length);
-                const result = await window.electronAPI.applyFilter(config);
-                console.log('Got filter result:', result);
-                
-                if (result.success) {
-                    console.log('Filter successful, content length:', result.content.length);
-                    console.log('First 100 chars of filtered content:', result.content.substring(0, 100));
-                    filteredEditor.setValue(result.content);
-                    console.log('Editor updated');
-                } else {
-                    console.error('Filter failed:', result.error);
-                    filteredEditor.setValue(`错误: ${result.error || '过滤失败'}`);
-                }
-            } catch (err) {
-                console.error('过滤错误:', err);
-                filteredEditor.setValue(`错误: ${err.message || '过滤失败'}`);
-            }
-        }
-
         function updateFileInfo(filePath) {
             if (filePath) {
-                const fileName = filePath.split('\\').pop();
+                const fileName = filePath.split(/[/\\]/).pop();
                 fileInfo.textContent = `当前文件: ${fileName}`;
             } else {
                 fileInfo.textContent = '';
