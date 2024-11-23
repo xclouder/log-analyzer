@@ -189,17 +189,59 @@
         // 初始化编辑器
         require.config({ paths: { vs: 'node_modules/monaco-editor/min/vs' } });
         require(['vs/editor/editor.main'], function () {
+            // 注册自定义语言
+            monaco.languages.register({ id: 'unreallog' });
+
+            // 定义语言的语法高亮规则
+            monaco.languages.setMonarchTokensProvider('unreallog', {
+                tokenizer: {
+                    root: [
+                        // 错误日志
+                        [/^.*\[.*Error.*\].*$/, 'error-line'],
+                        // 警告日志
+                        [/^.*\[.*Warning.*\].*$/, 'warning-line'],
+                        // Verbose日志
+                        [/^.*\[.*Verbose.*\].*$/, 'verbose-line'],
+                        // 默认为Log级别
+                        [/^.*$/, 'log-line'],
+                    ]
+                }
+            });
+
+            // 定义主题
+            monaco.editor.defineTheme('unreallog-theme', {
+                base: 'vs-dark',
+                inherit: true,
+                rules: [
+                    { token: 'error-line', foreground: 'FF5252' },
+                    { token: 'warning-line', foreground: 'FFB74D' },
+                    { token: 'verbose-line', foreground: '808080' },
+                    { token: 'log-line', foreground: 'FFFFFF' }
+                ],
+                colors: {
+                    'editor.background': '#1E1E1E'
+                }
+            });
+
             editor = monaco.editor.create(document.getElementById('editor'), {
                 value: '',
-                language: 'text',
-                theme: 'vs-dark',
+                language: 'unreallog',
+                theme: 'unreallog-theme',
+                minimap: { enabled: true },
+                wordWrap: 'on',
+                lineNumbers: 'on',
+                scrollBeyondLastLine: false,
                 automaticLayout: true
             });
 
             filteredEditor = monaco.editor.create(document.getElementById('filtered-editor'), {
                 value: '',
-                language: 'text',
-                theme: 'vs-dark',
+                language: 'unreallog',
+                theme: 'unreallog-theme',
+                minimap: { enabled: true },
+                wordWrap: 'on',
+                lineNumbers: 'on',
+                scrollBeyondLastLine: false,
                 automaticLayout: true,
                 readOnly: true
             });
