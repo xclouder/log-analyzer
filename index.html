@@ -138,17 +138,15 @@
             background-color: #b71c1c;
         }
         .filter-section {
-            transition: max-height 0.3s ease-out;
             overflow: hidden;
-            max-height: 1000px;
+            max-height: none;
             display: flex;
             flex-direction: column;
             gap: 2px;
             padding: 2px 0;
         }
         .filter-section.collapsed {
-            max-height: 0;
-            padding: 0;
+            display: none;
         }
         .filter-toggle {
             display: flex;
@@ -170,7 +168,6 @@
             color: #ffffff;
         }
         .filter-toggle i {
-            transition: transform 0.3s;
             color: #64B5F6;
             font-size: 14px;
         }
