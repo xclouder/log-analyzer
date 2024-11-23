@@ -57,6 +57,11 @@
         #editor, #filtered-editor {
             flex: 1;
             height: 100%;
+            border: 2px dashed transparent;
+            transition: border-color 0.3s;
+        }
+        #editor.drag-over, #filtered-editor.drag-over {
+            border-color: #4CAF50;
         }
         .divider {
             width: 4px;
@@ -163,7 +168,6 @@
     <div id="toolbar">
         <div class="toolbar-row">
             <button onclick="openFile()">打开文件</button>
-            <button onclick="saveFile()">保存结果</button>
             <span id="file-info"></span>
         </div>
         <div class="filter-container" id="filter-container">
@@ -252,10 +256,6 @@
             openFile();
         });
 
-        window.electronAPI.onMenuSaveFile(() => {
-            saveFile();
-        });
-
         window.electronAPI.onFilterSaveConfig(async (event, filePath) => {
             try {
                 // 在保存之前更新当前配置
@@ -296,6 +296,19 @@
                 alert('应用配置错误: ' + err.message);
             }
         });
+
+        // 清除所有过滤器
+        function clearFilters() {
+            currentFilterConfig.patterns = [];
+            const container = document.getElementById('filter-container');
+            while (container.firstChild) {
+                container.removeChild(container.firstChild);
+            }
+            // 清除过滤后的编辑器内容
+            if (filteredEditor) {
+                filteredEditor.setValue('');
+            }
+        }
 
         // 更新当前配置
         function updateCurrentConfig() {
@@ -529,22 +542,7 @@
                 currentFilePath = filePath;
                 editor.setValue(content);
                 updateFileInfo(filePath);
-            }
-        }
-
-        async function saveFile() {
-            if (!currentFilePath) return;
-            
-            const content = editor.getValue();
-            const success = await window.electronAPI.saveFile({
-                filePath: currentFilePath,
-                content
-            });
-
-            if (success) {
-                console.log('File saved successfully');
-            } else {
-                console.error('Failed to save file');
+                clearFilters();
             }
         }
 
@@ -556,6 +554,56 @@
                 fileInfo.textContent = '';
             }
         }
+
+        function handleDragOver(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            e.dataTransfer.dropEffect = 'copy';
+            document.getElementById('editor').classList.add('drag-over');
+        }
+
+        function handleDragLeave(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            document.getElementById('editor').classList.remove('drag-over');
+        }
+
+        async function handleDrop(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            document.getElementById('editor').classList.remove('drag-over');
+
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                const file = files[0];
+                try {
+                    // 关闭当前文件（如果有的话）
+                    if (currentFilePath) {
+                        editor.setValue('');
+                        filteredEditor.setValue('');
+                        currentFilePath = null;
+                        document.getElementById('file-info').textContent = '';
+                    }
+                    
+                    // 清除过滤器
+                    clearFilters();
+                    
+                    // 打开新文件
+                    const content = await window.electronAPI.readFile(file.path);
+                    currentFilePath = file.path;
+                    editor.setValue(content);
+                    document.getElementById('file-info').textContent = `文件: ${file.name}`;
+                    
+                } catch (err) {
+                    console.error('Error reading dropped file:', err);
+                    alert('读取文件失败: ' + err.message);
+                }
+            }
+        }
+
+        document.body.addEventListener('dragover', handleDragOver);
+        document.body.addEventListener('dragleave', handleDragLeave);
+        document.body.addEventListener('drop', handleDrop);
     </script>
 </body>
 </html>

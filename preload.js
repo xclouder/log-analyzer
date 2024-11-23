@@ -13,5 +13,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
     onMenuOpenFile: (callback) => ipcRenderer.on('menu:open-file', callback),
     onMenuSaveFile: (callback) => ipcRenderer.on('menu:save-file', callback),
     onFilterSaveConfig: (callback) => ipcRenderer.on('filter:save-config-dialog', callback),
-    onFilterLoadConfig: (callback) => ipcRenderer.on('filter:load-config-result', callback)
+    onFilterLoadConfig: (callback) => ipcRenderer.on('filter:load-config-result', callback),
+    readFile: (filePath) => ipcRenderer.invoke('file:read', filePath),
 });

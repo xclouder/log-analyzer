@@ -76,14 +76,20 @@ ipcMain.handle('dialog:openFile', async () => {
 });
 
 ipcMain.handle('dialog:saveFile', async (event, { filePath, content }) => {
+    // 不再需要保存功能
+    return false;
+});
+
+// 添加文件读取处理器
+ipcMain.handle('file:read', async (event, filePath) => {
     try {
-        await fsPromises.writeFile(filePath, content, 'utf8');
+        const content = await fsPromises.readFile(filePath, 'utf8');
         currentLogContent = content;
-        log('File saved:', filePath);
-        return true;
+        log('File read:', filePath);
+        return content;
     } catch (err) {
-        logError('Error saving file:', err);
-        return false;
+        logError('Error reading file:', err);
+        throw err;
     }
 });
 
@@ -236,12 +242,6 @@ function createMenu() {
                     label: '打开文件',
                     click: () => {
                         mainWindow.webContents.send('menu:open-file');
-                    }
-                },
-                {
-                    label: '保存结果',
-                    click: () => {
-                        mainWindow.webContents.send('menu:save-file');
                     }
                 },
                 { type: 'separator' },
