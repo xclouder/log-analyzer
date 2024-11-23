@@ -5,6 +5,20 @@ const fsPromises = fs.promises;  // 使用 fs.promises 以支持异步操作
 
 let mainWindow;
 let currentLogContent = '';
+let isLoggingEnabled = false;
+
+// 日志控制函数
+function log(...args) {
+    if (isLoggingEnabled) {
+        console.log(...args);
+    }
+}
+
+function logError(...args) {
+    if (isLoggingEnabled) {
+        console.error(...args);
+    }
+}
 
 function createWindow() {
     mainWindow = new BrowserWindow({
@@ -48,12 +62,13 @@ ipcMain.handle('dialog:openFile', async () => {
         try {
             const content = await fsPromises.readFile(filePath, 'utf8');
             currentLogContent = content;
+            log('File opened:', filePath);
             return {
                 content,
                 filePath
             };
         } catch (err) {
-            console.error('Error reading file:', err);
+            logError('Error reading file:', err);
             return null;
         }
     }
@@ -64,15 +79,16 @@ ipcMain.handle('dialog:saveFile', async (event, { filePath, content }) => {
     try {
         await fsPromises.writeFile(filePath, content, 'utf8');
         currentLogContent = content;
+        log('File saved:', filePath);
         return true;
     } catch (err) {
-        console.error('Error saving file:', err);
+        logError('Error saving file:', err);
         return false;
     }
 });
 
 function filterLogs(content, config) {
-    console.log('Filtering logs with config:', config);
+    log('Filtering logs with config:', config);
     const lines = content.split('\n');
     const filteredLines = [];
 
@@ -114,7 +130,7 @@ function filterLogs(content, config) {
 
     // 如果没有过滤条件，返回添加行号的非空行内容
     if (!config.patterns || config.patterns.length === 0) {
-        console.log('No filter patterns provided, returning non-empty lines with line numbers');
+        log('No filter patterns provided, returning non-empty lines with line numbers');
         return lines
             .map((line, index) => ({ 
                 line: line.trim(), 
@@ -125,49 +141,49 @@ function filterLogs(content, config) {
             .join('\n');
     }
 
-    console.log('Processing filter patterns:', config.patterns);
+    log('Processing filter patterns:', config.patterns);
 
     // 预处理过滤条件
     const processedPatterns = config.patterns.map(({ pattern, type }) => {
-        console.log(`Processing pattern: "${pattern}" of type: ${type}`);
+        log(`Processing pattern: "${pattern}" of type: ${type}`);
         if (type === 'line') {
             try {
                 const lineFilter = parseLineRange(pattern);
-                console.log('Successfully created line range filter');
+                log('Successfully created line range filter');
                 return {
                     pattern: lineFilter,
                     type: 'line'
                 };
             } catch (error) {
-                console.error('Invalid line range pattern:', pattern, error);
+                logError('Invalid line range pattern:', pattern, error);
                 return null;
             }
         } else if (type === 'regex') {
             try {
                 const regex = new RegExp(pattern);
-                console.log('Successfully created regex pattern:', regex);
+                log('Successfully created regex pattern:', regex);
                 return {
                     pattern: regex,
                     type: 'regex'
                 };
             } catch (error) {
-                console.error('Invalid regex pattern:', pattern, error);
+                logError('Invalid regex pattern:', pattern, error);
                 // 如果正则表达式无效，降级为文本匹配
-                console.log('Falling back to text matching for invalid regex');
+                log('Falling back to text matching for invalid regex');
                 return {
                     pattern: pattern,
                     type: 'text'
                 };
             }
         }
-        console.log('Using text matching pattern:', pattern);
+        log('Using text matching pattern:', pattern);
         return {
             pattern: pattern,
             type: 'text'
         };
     }).filter(pattern => pattern !== null);
 
-    console.log('Processed patterns:', processedPatterns);
+    log('Processed patterns:', processedPatterns);
 
     lines.forEach((line, lineIndex) => {
         const trimmedLine = line.trim();
@@ -176,21 +192,21 @@ function filterLogs(content, config) {
         }
 
         const lineNumber = lineIndex + 1;
-        // console.log(`\nProcessing line ${lineNumber}:`, trimmedLine);
+        // log(`\nProcessing line ${lineNumber}:`, trimmedLine);
 
         // 任何一个模式匹配成功就保留该行（OR关系）
         const shouldKeep = processedPatterns.some(({ pattern, type }, index) => {
             if (type === 'line') {
                 const matches = pattern(lineNumber);
-                // console.log(`Pattern ${index + 1} (line): Line ${lineNumber} - Match result:`, matches);
+                // log(`Pattern ${index + 1} (line): Line ${lineNumber} - Match result:`, matches);
                 return matches;
             } else if (type === 'regex') {
                 const matches = pattern.test(trimmedLine);
-                console.log(`Pattern ${index + 1} (regex): "${pattern}" - Match result:`, matches);
+                log(`Pattern ${index + 1} (regex): "${pattern}" - Match result:`, matches);
                 return matches;
             } else {
                 const matches = trimmedLine.toLowerCase().includes(pattern.toLowerCase());
-                console.log(`Pattern ${index + 1} (text): "${pattern}" - Match result:`, matches);
+                log(`Pattern ${index + 1} (text): "${pattern}" - Match result:`, matches);
                 return matches;
             }
         });
@@ -198,13 +214,13 @@ function filterLogs(content, config) {
         if (shouldKeep) {
             // 添加行号标记并保留该行
             filteredLines.push(`${formatLineNumber(lineNumber)} ${trimmedLine}`);
-            // console.log('Line matched and kept');
+            // log('Line matched and kept');
         } else {
-            // console.log('Line filtered out');
+            // log('Line filtered out');
         }
     });
 
-    console.log(`Filtered ${lines.length} lines to ${filteredLines.length} lines`);
+    log(`Filtered ${lines.length} lines to ${filteredLines.length} lines`);
     return filteredLines.join('\n');
 }
 
@@ -223,7 +239,7 @@ ipcMain.handle('filter:apply', async (event, config) => {
             content: filteredContent
         };
     } catch (err) {
-        console.error('Error applying filter:', err);
+        logError('Error applying filter:', err);
         return {
             success: false,
             error: err.message
@@ -231,33 +247,37 @@ ipcMain.handle('filter:apply', async (event, config) => {
     }
 });
 
-// 过滤配置相关的IPC处理
-ipcMain.handle('filter:save-config', async (event, config, filePath) => {
+// 加载过滤器配置
+ipcMain.handle('loadFilterConfig', async () => {
     try {
-        console.log('Saving config to file:', config);
-        await fsPromises.writeFile(filePath, JSON.stringify(config, null, 2));
-        return { success: true };
+        const { filePaths } = await dialog.showOpenDialog({
+            properties: ['openFile'],
+            filters: [
+                { name: 'Filter Config', extensions: ['json'] }
+            ]
+        });
+
+        if (filePaths && filePaths.length > 0) {
+            const configPath = filePaths[0];
+            const configData = await fs.readFile(configPath, 'utf8');
+            const config = JSON.parse(configData);
+            log('Filter config loaded:', config);
+            return config;
+        }
     } catch (err) {
-        console.error('Error saving filter config:', err);
-        return { success: false, error: err.message };
+        logError('Error loading filter config:', err);
+        throw new Error('加载过滤器配置失败: ' + err.message);
     }
 });
 
-ipcMain.handle('filter:load-config', async (event, filePath) => {
+// 保存过滤器配置
+ipcMain.handle('filter:save-config', async (event, config, filePath) => {
     try {
-        console.log('Loading config from file:', filePath);
-        const configData = await fsPromises.readFile(filePath, 'utf-8');
-        const config = JSON.parse(configData);
-        console.log('Loaded config:', config);
-        
-        if (!config || !config.patterns) {
-            throw new Error('Invalid config format');
-        }
-        
-        mainWindow.webContents.send('filter:load-config-result', config);
-        return { success: true, config };
+        log('Saving config to file:', config);
+        await fsPromises.writeFile(filePath, JSON.stringify(config, null, 2));
+        return { success: true };
     } catch (err) {
-        console.error('Error loading filter config:', err);
+        logError('Error saving filter config:', err);
         return { success: false, error: err.message };
     }
 });
@@ -310,13 +330,13 @@ function createMenu() {
                         if (!result.canceled && result.filePaths.length > 0) {
                             const configPath = result.filePaths[0];
                             try {
-                                console.log('Reading config file:', configPath);
+                                log('Reading config file:', configPath);
                                 const configData = await fsPromises.readFile(configPath, 'utf-8');
                                 const config = JSON.parse(configData);
-                                console.log('Sending config to renderer:', config);
+                                log('Sending config to renderer:', config);
                                 mainWindow.webContents.send('filter:load-config-result', config);
                             } catch (err) {
-                                console.error('Error loading filter config:', err);
+                                logError('Error loading filter config:', err);
                                 dialog.showErrorBox('错误', '加载配置文件失败: ' + err.message);
                             }
                         }
@@ -324,6 +344,22 @@ function createMenu() {
                 },
                 { type: 'separator' },
                 { role: 'quit' }
+            ]
+        },
+        {
+            label: '开发',
+            submenu: [
+                {
+                    label: '切换调试日志',
+                    type: 'checkbox',
+                    checked: isLoggingEnabled,
+                    click: (menuItem) => {
+                        isLoggingEnabled = menuItem.checked;
+                        mainWindow.webContents.send('toggle-logging', isLoggingEnabled);
+                        log('Logging ' + (isLoggingEnabled ? 'enabled' : 'disabled'));
+                    }
+                },
+                { role: 'toggleDevTools' }
             ]
         }
     ]);

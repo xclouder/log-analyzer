@@ -118,6 +118,19 @@
         .add-filter:hover {
             background-color: #1b5e20;
         }
+        .apply-filter {
+            background-color: #2196F3;
+            color: white;
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-left: 10px;
+            font-size: 14px;
+        }
+        .apply-filter:hover {
+            background-color: #1976D2;
+        }
     </style>
 </head>
 <body>
@@ -130,6 +143,7 @@
         <div class="filter-container" id="filter-container">
         </div>
         <button class="add-filter" onclick="addFilter()">添加过滤条件</button>
+        <button class="apply-filter" onclick="applyFilter()">应用过滤器</button>
     </div>
     <div class="editors-container">
         <div id="editor"></div>
@@ -208,8 +222,7 @@
                     throw new Error('无效的配置格式');
                 }
                 currentFilterConfig = config;
-                updateFilterUI(); // 更新过滤器UI
-                await applyFilter(); // 应用过滤器
+                updateFilterUI(); 
             } catch (err) {
                 console.error('应用配置错误:', err);
                 alert('应用配置错误: ' + err.message);
@@ -271,12 +284,10 @@
                     typeSelect.addEventListener('change', () => {
                         updatePlaceholder(typeSelect, patternInput);
                         updateCurrentConfig();
-                        applyFilter();
                     });
 
                     patternInput.addEventListener('input', () => {
                         updateCurrentConfig();
-                        applyFilter();
                     });
 
                     container.appendChild(filterItem);
@@ -329,12 +340,10 @@
             typeSelect.addEventListener('change', () => {
                 updatePlaceholder(typeSelect, patternInput);
                 updateCurrentConfig();
-                applyFilter();
             });
 
             patternInput.addEventListener('input', () => {
                 updateCurrentConfig();
-                applyFilter();
             });
 
             container.appendChild(filterItem);
@@ -349,7 +358,6 @@
                 filterItem.remove();
                 console.log('Deleted filter item');
                 updateCurrentConfig();
-                applyFilter();
             }
         }
 
@@ -368,60 +376,6 @@
                 console.error('过滤错误:', err);
                 filteredEditor.setValue(`错误: ${err.message || '过滤失败'}`);
             }
-        }
-
-        function addLineFilter(pattern) {
-            // 创建新的过滤条件
-            const filterRow = document.createElement('div');
-            filterRow.className = 'filter-row';
-            filterRow.innerHTML = `
-                <select class="filter-type">
-                    <option value="text">文本匹配</option>
-                    <option value="regex">正则匹配</option>
-                    <option value="line">行号范围</option>
-                </select>
-                <input type="text" class="filter-pattern" placeholder="输入过滤条件">
-                <button class="remove-filter" onclick="removeFilter(this)">删除</button>
-            `;
-
-            // 设置为行号过滤
-            const typeSelect = filterRow.querySelector('.filter-type');
-            const patternInput = filterRow.querySelector('.filter-pattern');
-            typeSelect.value = 'line';
-            patternInput.value = pattern;
-            updatePlaceholder(typeSelect, patternInput);
-
-            // 添加到过滤器列表
-            document.getElementById('filters').appendChild(filterRow);
-
-            // 立即应用过滤
-            applyFilter();
-        }
-
-        function removeAllLineFilters() {
-            const filterRows = document.getElementsByClassName('filter-row');
-            const rowsToRemove = [];
-
-            // 首先收集所有需要移除的行号过滤器
-            Array.from(filterRows).forEach(row => {
-                if (row.querySelector('.filter-type').value === 'line') {
-                    rowsToRemove.push(row);
-                }
-            });
-
-            // 如果只剩下一个过滤器，保留它但清空内容
-            if (filterRows.length === 1) {
-                const row = filterRows[0];
-                row.querySelector('.filter-type').value = 'text';
-                row.querySelector('.filter-pattern').value = '';
-                updatePlaceholder(row.querySelector('.filter-type'), row.querySelector('.filter-pattern'));
-            } else {
-                // 移除收集到的行号过滤器
-                rowsToRemove.forEach(row => row.remove());
-            }
-
-            // 立即应用过滤
-            applyFilter();
         }
 
         async function openFile() {
