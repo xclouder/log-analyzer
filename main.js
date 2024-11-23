@@ -87,141 +87,88 @@ ipcMain.handle('dialog:saveFile', async (event, { filePath, content }) => {
     }
 });
 
-function filterLogs(content, config) {
-    log('Filtering logs with config:', config);
-    const lines = content.split('\n');
-    const filteredLines = [];
-
-    // 格式化行号的函数，使用空格代替前导零
-    function formatLineNumber(num) {
-        return `[Line:${num.toString().padStart(6, ' ')}]`;
-    }
-
-    // 解析行号范围的函数
-    function parseLineRange(pattern) {
-        pattern = pattern.trim();
-        
-        // 处理大于小于
-        if (pattern.startsWith('>')) {
-            const num = parseInt(pattern.substring(1));
-            return lineNum => lineNum > num;
+async function filterContent(content, config) {
+    try {
+        if (!content || !config || !config.patterns || config.patterns.length === 0) {
+            return { success: true, content: content };
         }
-        if (pattern.startsWith('<')) {
-            const num = parseInt(pattern.substring(1));
-            return lineNum => lineNum < num;
-        }
-        
-        // 处理范围 (如 "1-100")
-        if (pattern.includes('-')) {
-            const [start, end] = pattern.split('-').map(num => parseInt(num.trim()));
-            return lineNum => lineNum >= start && lineNum <= end;
-        }
-        
-        // 处理具体行号列表 (如 "1,2,3")
-        if (pattern.includes(',')) {
-            const numbers = pattern.split(',').map(num => parseInt(num.trim()));
-            return lineNum => numbers.includes(lineNum);
-        }
-        
-        // 处理单个行号
-        const num = parseInt(pattern);
-        return lineNum => lineNum === num;
-    }
 
-    // 如果没有过滤条件，返回添加行号的非空行内容
-    if (!config.patterns || config.patterns.length === 0) {
-        log('No filter patterns provided, returning non-empty lines with line numbers');
-        return lines
-            .map((line, index) => ({ 
-                line: line.trim(), 
-                number: index + 1 
-            }))
-            .filter(item => item.line !== '')
-            .map(item => `${formatLineNumber(item.number)} ${item.line}`)
-            .join('\n');
-    }
+        const lines = content.split('\n');
+        const matchedLines = new Set();
+        const lineHighlights = new Map(); // 存储行号到高亮颜色的映射
 
-    log('Processing filter patterns:', config.patterns);
+        // 处理每个过滤器
+        for (const filter of config.patterns) {
+            const { type, pattern, highlight, highlightColor } = filter;
+            if (!pattern) continue;
 
-    // 预处理过滤条件
-    const processedPatterns = config.patterns.map(({ pattern, type }) => {
-        log(`Processing pattern: "${pattern}" of type: ${type}`);
-        if (type === 'line') {
             try {
-                const lineFilter = parseLineRange(pattern);
-                log('Successfully created line range filter');
-                return {
-                    pattern: lineFilter,
-                    type: 'line'
-                };
-            } catch (error) {
-                logError('Invalid line range pattern:', pattern, error);
-                return null;
-            }
-        } else if (type === 'regex') {
-            try {
-                const regex = new RegExp(pattern);
-                log('Successfully created regex pattern:', regex);
-                return {
-                    pattern: regex,
-                    type: 'regex'
-                };
-            } catch (error) {
-                logError('Invalid regex pattern:', pattern, error);
-                // 如果正则表达式无效，降级为文本匹配
-                log('Falling back to text matching for invalid regex');
-                return {
-                    pattern: pattern,
-                    type: 'text'
-                };
+                switch (type) {
+                    case 'text':
+                        lines.forEach((line, index) => {
+                            if (line.includes(pattern)) {
+                                matchedLines.add(index);
+                                if (highlight) {
+                                    lineHighlights.set(index, highlightColor);
+                                }
+                            }
+                        });
+                        break;
+                    case 'regex':
+                        const regex = new RegExp(pattern);
+                        lines.forEach((line, index) => {
+                            if (regex.test(line)) {
+                                matchedLines.add(index);
+                                if (highlight) {
+                                    lineHighlights.set(index, highlightColor);
+                                }
+                            }
+                        });
+                        break;
+                    case 'line':
+                        const range = pattern.split('-').map(num => parseInt(num.trim()));
+                        if (range.length === 2 && !isNaN(range[0]) && !isNaN(range[1])) {
+                            for (let i = range[0] - 1; i < range[1]; i++) {
+                                if (i >= 0 && i < lines.length) {
+                                    matchedLines.add(i);
+                                    if (highlight) {
+                                        lineHighlights.set(i, highlightColor);
+                                    }
+                                }
+                            }
+                        }
+                        break;
+                }
+            } catch (err) {
+                console.error('Filter error:', err);
             }
         }
-        log('Using text matching pattern:', pattern);
-        return {
-            pattern: pattern,
-            type: 'text'
-        };
-    }).filter(pattern => pattern !== null);
 
-    log('Processed patterns:', processedPatterns);
-
-    lines.forEach((line, lineIndex) => {
-        const trimmedLine = line.trim();
-        if (!trimmedLine) {
-            return; // 跳过空行
-        }
-
-        const lineNumber = lineIndex + 1;
-        // log(`\nProcessing line ${lineNumber}:`, trimmedLine);
-
-        // 任何一个模式匹配成功就保留该行（OR关系）
-        const shouldKeep = processedPatterns.some(({ pattern, type }, index) => {
-            if (type === 'line') {
-                const matches = pattern(lineNumber);
-                // log(`Pattern ${index + 1} (line): Line ${lineNumber} - Match result:`, matches);
-                return matches;
-            } else if (type === 'regex') {
-                const matches = pattern.test(trimmedLine);
-                log(`Pattern ${index + 1} (regex): "${pattern}" - Match result:`, matches);
-                return matches;
-            } else {
-                const matches = trimmedLine.toLowerCase().includes(pattern.toLowerCase());
-                log(`Pattern ${index + 1} (text): "${pattern}" - Match result:`, matches);
-                return matches;
+        // 构建过滤后的内容，包括高亮信息
+        const filteredLines = [];
+        const highlights = [];
+        
+        lines.forEach((line, index) => {
+            if (matchedLines.has(index)) {
+                filteredLines.push(line);
+                if (lineHighlights.has(index)) {
+                    highlights.push({
+                        lineNumber: filteredLines.length, // 新的行号
+                        color: lineHighlights.get(index)
+                    });
+                }
             }
         });
 
-        if (shouldKeep) {
-            // 添加行号标记并保留该行
-            filteredLines.push(`${formatLineNumber(lineNumber)} ${trimmedLine}`);
-            // log('Line matched and kept');
-        } else {
-            // log('Line filtered out');
-        }
-    });
-
-    log(`Filtered ${lines.length} lines to ${filteredLines.length} lines`);
-    return filteredLines.join('\n');
+        return {
+            success: true,
+            content: filteredLines.join('\n'),
+            highlights: highlights
+        };
+    } catch (err) {
+        console.error('Filter error:', err);
+        return { success: false, error: err.message };
+    }
 }
 
 ipcMain.handle('filter:apply', async (event, config) => {
@@ -233,11 +180,8 @@ ipcMain.handle('filter:apply', async (event, config) => {
             };
         }
 
-        const filteredContent = filterLogs(currentLogContent, config);
-        return {
-            success: true,
-            content: filteredContent
-        };
+        const result = await filterContent(currentLogContent, config);
+        return result;
     } catch (err) {
         logError('Error applying filter:', err);
         return {

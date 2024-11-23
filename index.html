@@ -73,12 +73,38 @@
             display: flex;
             align-items: center;
             gap: 10px;
-            background-color: #2a2a2a;
-            padding: 10px;
-            border-radius: 5px;
+            margin-bottom: 10px;
         }
-        .filter-item input[type="text"] {
-            flex-grow: 1;
+        .filter-type {
+            padding: 5px;
+            border-radius: 4px;
+            border: 1px solid #ccc;
+        }
+        .filter-pattern {
+            flex: 1;
+            padding: 5px;
+            border-radius: 4px;
+            border: 1px solid #ccc;
+        }
+        .highlight-controls {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .highlight-checkbox {
+            margin: 0;
+        }
+        .highlight-color {
+            width: 60px;
+            padding: 0;
+            height: 25px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .highlight-color:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
         }
         .filter-type {
             background-color: #444;
@@ -237,8 +263,10 @@
             const filters = Array.from(filterItems).map(item => {
                 const type = item.querySelector('.filter-type').value;
                 const pattern = item.querySelector('.filter-pattern').value;
-                console.log('Filter item:', { type, pattern });
-                return { type, pattern };
+                const highlight = item.querySelector('.highlight-checkbox').checked;
+                const highlightColor = item.querySelector('.highlight-color').value;
+                console.log('Filter item:', { type, pattern, highlight, highlightColor });
+                return { type, pattern, highlight, highlightColor };
             }).filter(item => item.pattern.trim() !== ''); // 只保留有内容的过滤条件
 
             currentFilterConfig = {
@@ -271,6 +299,11 @@
                             <option value="line" ${filter.type === 'line' ? 'selected' : ''}>行号范围</option>
                         </select>
                         <input type="text" class="filter-pattern" value="${filter.pattern || ''}" placeholder="输入过滤条件">
+                        <div class="highlight-controls">
+                            <input type="checkbox" class="highlight-checkbox" ${filter.highlight ? 'checked' : ''}>
+                            <input type="color" class="highlight-color" value="${filter.highlightColor || '#FFEB3B'}" 
+                                   ${filter.highlight ? '' : 'disabled'}>
+                        </div>
                         <button class="delete-filter" onclick="deleteFilter(this)">删除</button>
                     `;
 
@@ -287,6 +320,19 @@
                     });
 
                     patternInput.addEventListener('input', () => {
+                        updateCurrentConfig();
+                    });
+
+                    // 高亮控制事件监听器
+                    const highlightCheckbox = filterItem.querySelector('.highlight-checkbox');
+                    const highlightColor = filterItem.querySelector('.highlight-color');
+                    
+                    highlightCheckbox.addEventListener('change', () => {
+                        highlightColor.disabled = !highlightCheckbox.checked;
+                        updateCurrentConfig();
+                    });
+
+                    highlightColor.addEventListener('input', () => {
                         updateCurrentConfig();
                     });
 
@@ -327,6 +373,10 @@
                     <option value="line">行号范围</option>
                 </select>
                 <input type="text" class="filter-pattern" placeholder="输入过滤条件">
+                <div class="highlight-controls">
+                    <input type="checkbox" class="highlight-checkbox">
+                    <input type="color" class="highlight-color" value="#FFEB3B" disabled>
+                </div>
                 <button class="delete-filter" onclick="deleteFilter(this)">删除</button>
             `;
 
@@ -343,6 +393,19 @@
             });
 
             patternInput.addEventListener('input', () => {
+                updateCurrentConfig();
+            });
+
+            // 高亮控制事件监听器
+            const highlightCheckbox = filterItem.querySelector('.highlight-checkbox');
+            const highlightColor = filterItem.querySelector('.highlight-color');
+            
+            highlightCheckbox.addEventListener('change', () => {
+                highlightColor.disabled = !highlightCheckbox.checked;
+                updateCurrentConfig();
+            });
+
+            highlightColor.addEventListener('input', () => {
                 updateCurrentConfig();
             });
 
@@ -368,6 +431,45 @@
                 const result = await window.electronAPI.filterLogs(currentFilterConfig);
                 if (result.success) {
                     filteredEditor.setValue(result.content);
+                    
+                    // 应用高亮
+                    if (result.highlights && result.highlights.length > 0) {
+                        const decorations = result.highlights.map(highlight => ({
+                            range: new monaco.Range(
+                                highlight.lineNumber,
+                                1,
+                                highlight.lineNumber,
+                                1
+                            ),
+                            options: {
+                                isWholeLine: true,
+                                className: `highlightLine-${highlight.lineNumber}`,
+                                inlineClassName: null,
+                            }
+                        }));
+
+                        // 动态创建样式
+                        result.highlights.forEach(highlight => {
+                            const styleId = `highlight-style-${highlight.lineNumber}`;
+                            let style = document.getElementById(styleId);
+                            if (!style) {
+                                style = document.createElement('style');
+                                style.id = styleId;
+                                document.head.appendChild(style);
+                            }
+                            style.textContent = `
+                                .highlightLine-${highlight.lineNumber} {
+                                    background-color: ${highlight.color}40 !important;
+                                }
+                            `;
+                        });
+
+                        // 应用装饰
+                        filteredEditor.deltaDecorations([], decorations);
+                    } else {
+                        // 清除所有装饰
+                        filteredEditor.deltaDecorations([], []);
+                    }
                 } else {
                     console.error('过滤失败:', result.error);
                     filteredEditor.setValue(`错误: ${result.error || '过滤失败'}`);
