@@ -162,18 +162,62 @@
         .apply-filter:hover {
             background-color: #1976D2;
         }
+        .filter-section {
+            transition: max-height 0.3s ease-out;
+            overflow: hidden;
+            max-height: 1000px;
+        }
+        .filter-section.collapsed {
+            max-height: 0;
+        }
+        .filter-toggle {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            user-select: none;
+            background-color: #2d2d2d;
+            padding: 6px 12px;
+            border-radius: 4px;
+            color: #e0e0e0;
+            font-weight: 500;
+            border: 1px solid #404040;
+            transition: all 0.2s ease;
+        }
+        .filter-toggle:hover {
+            background-color: #383838;
+            border-color: #505050;
+            color: #ffffff;
+        }
+        .filter-toggle i {
+            transition: transform 0.3s;
+            color: #64B5F6;
+            font-size: 14px;
+        }
+        .filter-toggle.collapsed i {
+            transform: rotate(-90deg);
+        }
+        .filter-toggle span {
+            font-size: 13px;
+            letter-spacing: 0.5px;
+        }
     </style>
 </head>
 <body>
     <div id="toolbar">
         <div class="toolbar-row">
-            <button onclick="openFile()">打开文件</button>
+            <div class="filter-toggle" onclick="toggleFilterPanel()">
+                <i>▼</i>
+                <span>过滤条件</span>
+            </div>
             <span id="file-info"></span>
         </div>
-        <div class="filter-container" id="filter-container">
+        <div class="filter-section" id="filter-section">
+            <div class="filter-container" id="filter-container">
+            </div>
+            <button class="add-filter" onclick="addFilter()">添加过滤条件</button>
+            <button class="apply-filter" onclick="applyFilter()">应用过滤器</button>
         </div>
-        <button class="add-filter" onclick="addFilter()">添加过滤条件</button>
-        <button class="apply-filter" onclick="applyFilter()">应用过滤器</button>
     </div>
     <div class="editors-container">
         <div id="editor"></div>
@@ -599,6 +643,14 @@
                     alert('读取文件失败: ' + err.message);
                 }
             }
+        }
+
+        function toggleFilterPanel() {
+            const filterToggle = document.querySelector('.filter-toggle');
+            const filterSection = document.getElementById('filter-section');
+            
+            filterToggle.classList.toggle('collapsed');
+            filterSection.classList.toggle('collapsed');
         }
 
         document.body.addEventListener('dragover', handleDragOver);
