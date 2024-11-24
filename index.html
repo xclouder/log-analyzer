@@ -78,7 +78,9 @@
             display: flex;
             align-items: center;
             gap: 10px;
-            margin-bottom: 10px;
+            background-color: #2d2d2d;
+            padding: 4px 8px;
+            border-radius: 4px;
         }
         .filter-type {
             padding: 5px;
@@ -209,6 +211,16 @@
         .apply-filter:hover {
             background-color: #1976D2;
         }
+        .enable-checkbox {
+            margin: 0;
+            width: 14px;
+            height: 14px;
+            cursor: pointer;
+        }
+        /* 动态生成的高亮样式 */
+        .monaco-editor .highlight {
+            background-color: inherit;
+        }
     </style>
 </head>
 <body>
@@ -225,7 +237,7 @@
             </div>
             <div class="filter-buttons">
                 <button class="filter-button add-filter" onclick="addFilter()">添加过滤条件</button>
-                <button class="filter-button apply-filter" onclick="applyFilter()">应用过滤器</button>
+                <button class="filter-button apply-filter" onclick="applyFilters()">应用过滤器</button>
             </div>
         </div>
     </div>
@@ -367,23 +379,13 @@
         // 更新当前配置
         function updateCurrentConfig() {
             const filterItems = document.querySelectorAll('.filter-item');
-            console.log('Found filter items:', filterItems.length);
-            
-            const filters = Array.from(filterItems).map(item => {
-                const type = item.querySelector('.filter-type').value;
-                const pattern = item.querySelector('.filter-pattern').value;
-                const highlight = item.querySelector('.highlight-checkbox').checked;
-                const highlightColor = item.querySelector('.highlight-color').value;
-                console.log('Filter item:', { type, pattern, highlight, highlightColor });
-                return { type, pattern, highlight, highlightColor };
-            }).filter(item => item.pattern.trim() !== ''); // 只保留有内容的过滤条件
-
-            currentFilterConfig = {
-                patterns: filters
-            };
-            
-            console.log('Current config updated:', currentFilterConfig);
-            return currentFilterConfig;
+            currentFilterConfig.patterns = Array.from(filterItems).map(item => ({
+                enabled: item.querySelector('.enable-checkbox').checked,
+                type: item.querySelector('.filter-type').value,
+                pattern: item.querySelector('.filter-pattern').value,
+                highlight: item.querySelector('.highlight-checkbox').checked,
+                highlightColor: item.querySelector('.highlight-color').value
+            }));
         }
 
         // 更新过滤器UI
@@ -402,6 +404,7 @@
                     const filterItem = document.createElement('div');
                     filterItem.className = 'filter-item';
                     filterItem.innerHTML = `
+                        <input type="checkbox" class="enable-checkbox" ${filter.enabled ? 'checked' : ''}>
                         <select class="filter-type">
                             <option value="text" ${filter.type === 'text' ? 'selected' : ''}>文本匹配</option>
                             <option value="regex" ${filter.type === 'regex' ? 'selected' : ''}>正则匹配</option>
@@ -423,18 +426,13 @@
                     updatePlaceholder(typeSelect, patternInput);
 
                     // 添加事件监听器
-                    typeSelect.addEventListener('change', () => {
-                        updatePlaceholder(typeSelect, patternInput);
-                        updateCurrentConfig();
-                    });
-
-                    patternInput.addEventListener('input', () => {
-                        updateCurrentConfig();
-                    });
-
-                    // 高亮控制事件监听器
+                    const enableCheckbox = filterItem.querySelector('.enable-checkbox');
                     const highlightCheckbox = filterItem.querySelector('.highlight-checkbox');
                     const highlightColor = filterItem.querySelector('.highlight-color');
+                    
+                    enableCheckbox.addEventListener('change', () => {
+                        updateCurrentConfig();
+                    });
                     
                     highlightCheckbox.addEventListener('change', () => {
                         highlightColor.disabled = !highlightCheckbox.checked;
@@ -442,6 +440,15 @@
                     });
 
                     highlightColor.addEventListener('input', () => {
+                        updateCurrentConfig();
+                    });
+
+                    typeSelect.addEventListener('change', () => {
+                        updatePlaceholder(typeSelect, patternInput);
+                        updateCurrentConfig();
+                    });
+
+                    patternInput.addEventListener('input', () => {
                         updateCurrentConfig();
                     });
 
@@ -472,10 +479,10 @@
 
         // 添加过滤条件
         function addFilter() {
-            const container = document.getElementById('filter-container');
-            const filterItem = document.createElement('div');
-            filterItem.className = 'filter-item';
-            filterItem.innerHTML = `
+            const filterDiv = document.createElement('div');
+            filterDiv.className = 'filter-item';
+            filterDiv.innerHTML = `
+                <input type="checkbox" class="enable-checkbox" checked>
                 <select class="filter-type">
                     <option value="text">文本匹配</option>
                     <option value="regex">正则匹配</option>
@@ -489,25 +496,16 @@
                 <button class="delete-filter" onclick="deleteFilter(this)">删除</button>
             `;
 
-            const typeSelect = filterItem.querySelector('.filter-type');
-            const patternInput = filterItem.querySelector('.filter-pattern');
-
-            // 更新输入框提示
-            updatePlaceholder(typeSelect, patternInput);
-
             // 添加事件监听器
-            typeSelect.addEventListener('change', () => {
-                updatePlaceholder(typeSelect, patternInput);
+            const enableCheckbox = filterDiv.querySelector('.enable-checkbox');
+            const highlightCheckbox = filterDiv.querySelector('.highlight-checkbox');
+            const highlightColor = filterDiv.querySelector('.highlight-color');
+            const typeSelect = filterDiv.querySelector('.filter-type');
+            const patternInput = filterDiv.querySelector('.filter-pattern');
+
+            enableCheckbox.addEventListener('change', () => {
                 updateCurrentConfig();
             });
-
-            patternInput.addEventListener('input', () => {
-                updateCurrentConfig();
-            });
-
-            // 高亮控制事件监听器
-            const highlightCheckbox = filterItem.querySelector('.highlight-checkbox');
-            const highlightColor = filterItem.querySelector('.highlight-color');
             
             highlightCheckbox.addEventListener('change', () => {
                 highlightColor.disabled = !highlightCheckbox.checked;
@@ -518,8 +516,16 @@
                 updateCurrentConfig();
             });
 
-            container.appendChild(filterItem);
-            console.log('Added new filter item');
+            typeSelect.addEventListener('change', () => {
+                updatePlaceholder(typeSelect, patternInput);
+                updateCurrentConfig();
+            });
+
+            patternInput.addEventListener('input', () => {
+                updateCurrentConfig();
+            });
+
+            document.getElementById('filter-container').appendChild(filterDiv);
             updateCurrentConfig();
         }
 
@@ -533,56 +539,148 @@
             }
         }
 
+        // 从文本索引获取行号
+        function getLineNumberFromIndex(text, index) {
+            const textBeforeIndex = text.substring(0, index);
+            return (textBeforeIndex.match(/\n/g) || []).length + 1;
+        }
+
+        // 从文本索引获取列号
+        function getColumnFromIndex(text, index) {
+            const textBeforeIndex = text.substring(0, index);
+            const lastNewLine = textBeforeIndex.lastIndexOf('\n');
+            return lastNewLine === -1 ? index + 1 : index - lastNewLine;
+        }
+
         // 应用过滤器
-        async function applyFilter() {
-            updateCurrentConfig();
+        async function applyFilters() {
             try {
-                const result = await window.electronAPI.filterLogs(currentFilterConfig);
-                if (result.success) {
-                    filteredEditor.setValue(result.content);
-                    
-                    // 应用高亮
-                    if (result.highlights && result.highlights.length > 0) {
-                        const decorations = result.highlights.map(highlight => ({
-                            range: new monaco.Range(
-                                highlight.lineNumber,
-                                1,
-                                highlight.lineNumber,
-                                1
-                            ),
-                            options: {
-                                isWholeLine: true,
-                                className: `highlightLine-${highlight.lineNumber}`,
-                                inlineClassName: null,
-                            }
-                        }));
-
-                        // 动态创建样式
-                        result.highlights.forEach(highlight => {
-                            const styleId = `highlight-style-${highlight.lineNumber}`;
-                            let style = document.getElementById(styleId);
-                            if (!style) {
-                                style = document.createElement('style');
-                                style.id = styleId;
-                                document.head.appendChild(style);
-                            }
-                            style.textContent = `
-                                .highlightLine-${highlight.lineNumber} {
-                                    background-color: ${highlight.color}40 !important;
-                                }
-                            `;
-                        });
-
-                        // 应用装饰
-                        filteredEditor.deltaDecorations([], decorations);
-                    } else {
-                        // 清除所有装饰
-                        filteredEditor.deltaDecorations([], []);
-                    }
-                } else {
-                    console.error('过滤失败:', result.error);
-                    filteredEditor.setValue(`错误: ${result.error || '过滤失败'}`);
+                const sourceContent = editor.getValue();
+                if (!sourceContent) {
+                    filteredEditor.setValue('');
+                    return;
                 }
+
+                const lines = sourceContent.split('\n');
+                const filteredLineIndices = new Set();
+                let highlightRanges = [];
+
+                // 只使用激活的过滤器
+                const activeFilters = currentFilterConfig.patterns.filter(filter => filter.enabled);
+
+                // 如果没有激活的过滤器，显示所有内容
+                if (activeFilters.length === 0) {
+                    filteredEditor.setValue(sourceContent);
+                    return;
+                }
+
+                activeFilters.forEach(filter => {
+                    if (!filter.pattern) return;
+
+                    try {
+                        switch (filter.type) {
+                            case 'text':
+                                lines.forEach((line, index) => {
+                                    if (line.toLowerCase().includes(filter.pattern.toLowerCase())) {
+                                        filteredLineIndices.add(index);
+                                    }
+                                });
+                                if (filter.highlight) {
+                                    highlightRanges.push({
+                                        pattern: filter.pattern,
+                                        color: filter.highlightColor
+                                    });
+                                }
+                                break;
+
+                            case 'regex':
+                                const regex = new RegExp(filter.pattern, 'i');
+                                lines.forEach((line, index) => {
+                                    if (regex.test(line)) {
+                                        filteredLineIndices.add(index);
+                                    }
+                                });
+                                if (filter.highlight) {
+                                    highlightRanges.push({
+                                        pattern: filter.pattern,
+                                        color: filter.highlightColor,
+                                        isRegex: true
+                                    });
+                                }
+                                break;
+
+                            case 'line':
+                                const range = filter.pattern.split('-').map(num => parseInt(num.trim()));
+                                if (range.length === 2 && !isNaN(range[0]) && !isNaN(range[1])) {
+                                    for (let i = range[0] - 1; i <= range[1] - 1; i++) {
+                                        if (i >= 0 && i < lines.length) {
+                                            filteredLineIndices.add(i);
+                                        }
+                                    }
+                                }
+                                break;
+                        }
+                    } catch (err) {
+                        console.error('Filter error:', err);
+                    }
+                });
+
+                // 将匹配的行转换为数组并排序
+                const sortedIndices = Array.from(filteredLineIndices).sort((a, b) => a - b);
+                const filteredLines = sortedIndices.map(index => lines[index]);
+                const filteredContent = filteredLines.join('\n');
+                
+                filteredEditor.setValue(filteredContent);
+
+                // 清除现有的高亮样式
+                const head = document.head;
+                const highlightStyles = head.querySelectorAll('style[data-highlight]');
+                highlightStyles.forEach(style => style.remove());
+
+                // 应用高亮
+                if (highlightRanges.length > 0) {
+                    const model = filteredEditor.getModel();
+                    const decorations = [];
+
+                    // 为每个高亮颜色创建样式
+                    highlightRanges.forEach(({color}, index) => {
+                        const style = document.createElement('style');
+                        style.setAttribute('data-highlight', '');
+                        style.textContent = `
+                            .monaco-editor .highlight-${index} {
+                                background-color: ${color}40 !important;
+                            }
+                        `;
+                        head.appendChild(style);
+                    });
+
+                    // 应用高亮装饰
+                    highlightRanges.forEach(({pattern, color, isRegex}, index) => {
+                        const regex = isRegex ? new RegExp(pattern, 'gi') : new RegExp(pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+                        const lines = filteredContent.split('\n');
+                        
+                        lines.forEach((line, lineIndex) => {
+                            if (regex.test(line)) {
+                                decorations.push({
+                                    range: new monaco.Range(
+                                        lineIndex + 1,
+                                        1,
+                                        lineIndex + 1,
+                                        line.length + 1
+                                    ),
+                                    options: {
+                                        isWholeLine: true,
+                                        className: `highlight-${index}`
+                                    }
+                                });
+                            }
+                            regex.lastIndex = 0; // 重置正则表达式状态
+                        });
+                    });
+
+                    filteredEditor.deltaDecorations([], decorations);
+                }
+
             } catch (err) {
                 console.error('过滤错误:', err);
                 filteredEditor.setValue(`错误: ${err.message || '过滤失败'}`);
