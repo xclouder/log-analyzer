@@ -52,10 +52,12 @@
         .editors-container {
             display: flex;
             flex: 1;
-            overflow: hidden;
+            min-height: 0;
+            position: relative;
         }
         #editor, #filtered-editor {
             flex: 1;
+            min-width: 200px;
             height: 100%;
             border: 2px dashed transparent;
             transition: border-color 0.3s;
@@ -228,6 +230,17 @@
         .monaco-editor .highlight {
             background-color: inherit;
         }
+        .fullscreen {
+            position: fixed !important;
+            top: 0 !important;
+            left: 0 !important;
+            width: 100vw !important;
+            height: 100vh !important;
+            z-index: 9999 !important;
+        }
+        body.has-fullscreen #editors-container > :not(.fullscreen) {
+            display: none;
+        }
     </style>
 </head>
 <body>
@@ -261,6 +274,7 @@
         let currentFilterConfig = {
             patterns: []
         };
+        let currentFullscreenEditor = null;
         const fileInfo = document.getElementById('file-info');
 
         // 初始化编辑器
@@ -321,6 +335,59 @@
                 scrollBeyondLastLine: false,
                 automaticLayout: true,
                 readOnly: true
+            });
+
+            // 添加F11全屏切换事件监听
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'F11') {
+                    e.preventDefault();
+                    
+                    // 检查当前焦点是否在编辑器上
+                    const activeElement = document.activeElement;
+                    const sourceEditorElement = document.getElementById('editor');
+                    const filteredEditorElement = document.getElementById('filtered-editor');
+                    
+                    if (sourceEditorElement.contains(activeElement) || filteredEditorElement.contains(activeElement)) {
+                        const targetEditor = sourceEditorElement.contains(activeElement) ? sourceEditorElement : filteredEditorElement;
+                        
+                        if (currentFullscreenEditor === targetEditor) {
+                            // 退出全屏
+                            targetEditor.classList.remove('fullscreen');
+                            document.body.classList.remove('has-fullscreen');
+                            currentFullscreenEditor = null;
+                            
+                            // 重新布局两个编辑器
+                            setTimeout(() => {
+                                editor.layout();
+                                filteredEditor.layout();
+                            }, 0);
+                        } else {
+                            // 如果有其他编辑器在全屏，先退出
+                            if (currentFullscreenEditor) {
+                                currentFullscreenEditor.classList.remove('fullscreen');
+                                document.body.classList.remove('has-fullscreen');
+                                setTimeout(() => {
+                                    editor.layout();
+                                    filteredEditor.layout();
+                                }, 0);
+                            }
+                            
+                            // 进入全屏
+                            targetEditor.classList.add('fullscreen');
+                            document.body.classList.add('has-fullscreen');
+                            currentFullscreenEditor = targetEditor;
+                            
+                            // 重新布局当前编辑器
+                            setTimeout(() => {
+                                if (sourceEditorElement === targetEditor) {
+                                    editor.layout();
+                                } else {
+                                    filteredEditor.layout();
+                                }
+                            }, 0);
+                        }
+                    }
+                }
             });
         });
 
