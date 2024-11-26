@@ -6,7 +6,8 @@
   "scripts": {
     "start": "electron .",
     "pack": "electron-builder --dir",
-    "dist": "electron-builder"
+    "dist": "electron-builder",
+    "build-portable": "electron-builder --win portable"
   },
   "author": "",
   "license": "ISC",
@@ -24,7 +25,8 @@
       "output": "dist"
     },
     "win": {
-      "target": "portable"
+      "target": "portable",
+      "icon": "icon.ico"
     },
     "files": [
       "**/*",
@@ -39,6 +41,16 @@
       "!**/{__pycache__,thumbs.db,.flowconfig,.idea,.vs,.nyc_output}",
       "!**/{appveyor.yml,.travis.yml,circle.yml}",
       "!**/{npm-debug.log,yarn.lock,.yarn-integrity,.yarn-metadata.json}"
-    ]
+    ],
+    "extraResources": [
+      {
+        "from": "node_modules/monaco-editor/min",
+        "to": "monaco-editor/min",
+        "filter": ["**/*"]
+      }
+    ],
+    "portable": {
+      "artifactName": "LogAnalyzer-Portable.exe"
+    }
   }
 }

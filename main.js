@@ -32,7 +32,7 @@ function createWindow() {
     });
 
     mainWindow.loadFile('index.html');
-    mainWindow.webContents.openDevTools();
+    // mainWindow.webContents.openDevTools(); // 注释掉这行，禁用开发者工具的自动打开
     createMenu();
 }
 
