@@ -275,6 +275,7 @@
             patterns: []
         };
         let currentFullscreenEditor = null;
+        let lineMapping = []; // 存储过滤后的行号到原始行号的映射
         const fileInfo = document.getElementById('file-info');
 
         // 初始化编辑器
@@ -645,6 +646,7 @@
                 // 如果没有激活的过滤器，显示所有内容
                 if (activeFilters.length === 0) {
                     filteredEditor.setValue(sourceContent);
+                    lineMapping = Array.from({ length: lines.length }, (_, i) => i); // 创建1:1映射
                     return;
                 }
 
@@ -704,7 +706,58 @@
                 const filteredLines = sortedIndices.map(index => lines[index]);
                 const filteredContent = filteredLines.join('\n');
                 
+                // 保存行号映射
+                lineMapping = sortedIndices;
+                
                 filteredEditor.setValue(filteredContent);
+
+                // 添加双击事件处理
+                filteredEditor.onMouseDown((e) => {
+                    if (e.event.detail === 2) { // 双击事件
+                        const position = e.target.position;
+                        if (position) {
+                            const filteredLineNumber = position.lineNumber - 1; // Monaco编辑器行号从1开始
+                            const originalLineNumber = lineMapping[filteredLineNumber];
+                            
+                            if (originalLineNumber !== undefined) {
+                                // 如果当前处于全屏状态，先退出全屏
+                                if (currentFullscreenEditor) {
+                                    const editorElement = currentFullscreenEditor === editor ? 
+                                        document.getElementById('editor') : 
+                                        document.getElementById('filtered-editor');
+                                        
+                                    editorElement.classList.remove('fullscreen');
+                                    document.body.classList.remove('has-fullscreen');
+                                    currentFullscreenEditor = null;
+                                    
+                                    // 重新布局两个编辑器
+                                    setTimeout(() => {
+                                        editor.layout();
+                                        filteredEditor.layout();
+                                    }, 0);
+                                }
+                                
+                                // 跳转到原始日志对应行
+                                editor.revealLineInCenter(originalLineNumber + 1); // +1因为Monaco编辑器行号从1开始
+                                editor.setPosition({
+                                    lineNumber: originalLineNumber + 1,
+                                    column: 1
+                                });
+                                
+                                // 高亮显示当前行
+                                editor.setSelection({
+                                    startLineNumber: originalLineNumber + 1,
+                                    startColumn: 1,
+                                    endLineNumber: originalLineNumber + 1,
+                                    endColumn: editor.getModel().getLineMaxColumn(originalLineNumber + 1)
+                                });
+                                
+                                // 聚焦到原始编辑器
+                                editor.focus();
+                            }
+                        }
+                    }
+                });
 
                 // 清除现有的高亮样式
                 const head = document.head;
