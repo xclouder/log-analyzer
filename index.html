@@ -939,32 +939,45 @@
                     // 应用高亮装饰
                     highlightRanges.forEach(({pattern, color, isRegex, lines}, index) => {
                         if (lines) {
+                            // 获取编辑器模型
+                            const model = filteredEditor.getModel();
+                            if (!model) return;
+
+                            // 对每个行号应用高亮
+                            const filteredLines = filteredContent.split('\n');
                             lines.forEach(lineNum => {
-                                decorations.push({
-                                    range: new monaco.Range(
-                                        lineNum,
-                                        1,
-                                        lineNum,
-                                        model.getLineLength(lineNum)
-                                    ),
-                                    options: {
-                                        isWholeLine: true,
-                                        className: `highlight-${index}`
-                                    }
-                                });
+                                // 在过滤后的内容中找到对应的行
+                                const filteredLineNum = lineMapping.indexOf(lineNum) + 1;
+                                if (filteredLineNum > 0 && filteredLineNum <= filteredLines.length) {
+                                    decorations.push({
+                                        range: new monaco.Range(
+                                            filteredLineNum,
+                                            1,
+                                            filteredLineNum,
+                                            Math.max(1, model.getLineLength(filteredLineNum) + 1)
+                                        ),
+                                        options: {
+                                            isWholeLine: true,
+                                            className: `highlight-${index}`
+                                        }
+                                    });
+                                }
                             });
                         } else {
                             const regex = isRegex ? new RegExp(pattern, 'gi') : new RegExp(pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
-                            const lines = filteredContent.split('\n');
-                            
-                            lines.forEach((line, lineIndex) => {
+                            const model = filteredEditor.getModel();
+                            if (!model) return;
+
+                            // 遍历所有行
+                            for (let lineNum = 1; lineNum <= model.getLineCount(); lineNum++) {
+                                const line = model.getLineContent(lineNum);
                                 if (regex.test(line)) {
                                     decorations.push({
                                         range: new monaco.Range(
-                                            lineIndex + 1,
+                                            lineNum,
                                             1,
-                                            lineIndex + 1,
-                                            line.length + 1
+                                            lineNum,
+                                            Math.max(1, line.length + 1)
                                         ),
                                         options: {
                                             isWholeLine: true,
@@ -973,11 +986,14 @@
                                     });
                                 }
                                 regex.lastIndex = 0; // 重置正则表达式状态
-                            });
+                            }
                         }
                     });
 
-                    filteredEditor.deltaDecorations([], decorations);
+                    // 应用装饰器到过滤后的编辑器
+                    if (decorations.length > 0) {
+                        filteredEditor.deltaDecorations([], decorations);
+                    }
                 }
 
             } catch (err) {
