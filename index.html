@@ -375,6 +375,7 @@
                     if (content !== null) {
                         editor.setValue(content);
                         currentFilePath = file.path;
+                        document.title = `LogAnalyzer - ${file.path}`;
                     }
                 } catch (err) {
                     console.error('Error reading file:', err);

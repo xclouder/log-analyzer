@@ -86,7 +86,12 @@ ipcMain.handle('dialog:saveFile', async (event, { filePath, content }) => {
 // 添加文件读取处理器
 ipcMain.handle('file:read', async (event, filePath) => {
     try {
-        return await fs.readFile(filePath, 'utf8');
+        const content = await fs.readFile(filePath, 'utf8');
+        currentLogContent = content;
+        currentFilePath = filePath;
+        updateWindowTitle(filePath);
+        log('File read:', filePath);
+        return content;
     } catch (error) {
         throw new Error(`读取文件失败: ${error.message}`);
     }
@@ -106,7 +111,17 @@ ipcMain.handle('file:read-chunk', async (event, filePath, offset, length) => {
         const buffer = Buffer.alloc(length);
         const { bytesRead } = await fileHandle.read(buffer, 0, length, offset);
         await fileHandle.close();
-        return buffer.toString('utf8', 0, bytesRead);
+        const content = buffer.toString('utf8', 0, bytesRead);
+        
+        // 如果是最后一个块，更新当前文件信息
+        const stats = await fs.stat(filePath);
+        if (offset + bytesRead >= stats.size) {
+            currentFilePath = filePath;
+            updateWindowTitle(filePath);
+            log('File read (chunked):', filePath);
+        }
+        
+        return content;
     } catch (error) {
         throw new Error(`读取文件块失败: ${error.message}`);
     }
