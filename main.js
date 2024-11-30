@@ -130,7 +130,7 @@ ipcMain.handle('file:read-chunk', async (event, filePath, offset, length) => {
 // 处理重新加载当前文件的请求
 ipcMain.handle('file:reload', async () => {
     try {
-        if (!currentLogContent || !mainWindow) {
+        if (!currentFilePath || !mainWindow) {
             return null;
         }
 
@@ -143,17 +143,32 @@ ipcMain.handle('file:reload', async () => {
         }
 
         // 重新读取文件内容
-        const content = await fs.readFile(currentFilePath, 'utf8');
-        currentLogContent = content;
-        updateWindowTitle(currentFilePath);
-        log('File reloaded:', currentFilePath);
-        return {
-            content,
-            filePath: currentFilePath
-        };
+        try {
+            const content = await fs.readFile(currentFilePath, 'utf8');
+            currentLogContent = content;
+            updateWindowTitle(currentFilePath);
+            log('File reloaded:', currentFilePath);
+            return {
+                content,
+                filePath: currentFilePath
+            };
+        } catch (err) {
+            logError('Error reloading file:', err);
+            dialog.showErrorBox('错误', '重新加载文件失败: ' + err.message);
+            return null;
+        }
     } catch (err) {
-        logError('Error reloading file:', err);
+        logError('Error in file:reload:', err);
         return null;
+    }
+});
+
+// 显示文件在文件夹中
+ipcMain.on('show-item-in-folder', (event, filePath) => {
+    if (filePath) {
+        shell.showItemInFolder(filePath);
+    } else if (currentFilePath) {
+        shell.showItemInFolder(currentFilePath);
     }
 });
 

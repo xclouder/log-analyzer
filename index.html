@@ -241,6 +241,16 @@
         body.has-fullscreen #editors-container > :not(.fullscreen) {
             display: none;
         }
+        
+        .filtered-line {
+            background-color: rgba(86, 156, 214, 0.2) !important;
+        }
+        
+        .filtered-line-decoration {
+            background-color: rgba(86, 156, 214, 0.4) !important;
+            width: 5px !important;
+            margin-left: 3px;
+        }
     </style>
 </head>
 <body>
@@ -374,8 +384,12 @@
                     const content = await window.electronAPI.readFile(file.path);
                     if (content !== null) {
                         editor.setValue(content);
+                        // 更新当前文件路径
                         currentFilePath = file.path;
+                        // 更新窗口标题
                         document.title = `LogAnalyzer - ${file.path}`;
+                        // 更新文件信息
+                        updateFileInfo(file.path);
                     }
                 } catch (err) {
                     console.error('Error reading file:', err);
@@ -680,7 +694,7 @@
                     input.placeholder = '输入正则表达式';
                     break;
                 case 'line':
-                    input.placeholder = '输入行号范围（如：1-100 或 1,2,3 或 >100 或 <100）';
+                    input.placeholder = '输入行号范围（如：1-100 或 1,2,3）';
                     break;
                 default:
                     input.placeholder = '输入过滤条件';
@@ -821,13 +835,19 @@
                                 break;
 
                             case 'line':
-                                const range = filter.pattern.split('-').map(num => parseInt(num.trim()));
-                                if (range.length === 2 && !isNaN(range[0]) && !isNaN(range[1])) {
-                                    for (let i = range[0] - 1; i <= range[1] - 1; i++) {
-                                        if (i >= 0 && i < lines.length) {
-                                            filteredLineIndices.add(i);
-                                        }
+                                const lineNumbers = parseLineNumbers(filter.pattern);
+                                lineNumbers.forEach(lineNum => {
+                                    if (lineNum > 0 && lineNum <= lines.length) {
+                                        filteredLineIndices.add(lineNum - 1);
                                     }
+                                });
+                                if (filter.highlight) {
+                                    highlightRanges.push({
+                                        pattern: `^.*$`,
+                                        color: filter.highlightColor,
+                                        isRegex: true,
+                                        lines: lineNumbers
+                                    });
                                 }
                                 break;
                         }
@@ -917,27 +937,44 @@
                     });
 
                     // 应用高亮装饰
-                    highlightRanges.forEach(({pattern, color, isRegex}, index) => {
-                        const regex = isRegex ? new RegExp(pattern, 'gi') : new RegExp(pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
-                        const lines = filteredContent.split('\n');
-                        
-                        lines.forEach((line, lineIndex) => {
-                            if (regex.test(line)) {
+                    highlightRanges.forEach(({pattern, color, isRegex, lines}, index) => {
+                        if (lines) {
+                            lines.forEach(lineNum => {
                                 decorations.push({
                                     range: new monaco.Range(
-                                        lineIndex + 1,
+                                        lineNum,
                                         1,
-                                        lineIndex + 1,
-                                        line.length + 1
+                                        lineNum,
+                                        model.getLineLength(lineNum)
                                     ),
                                     options: {
                                         isWholeLine: true,
                                         className: `highlight-${index}`
                                     }
                                 });
-                            }
-                            regex.lastIndex = 0; // 重置正则表达式状态
-                        });
+                            });
+                        } else {
+                            const regex = isRegex ? new RegExp(pattern, 'gi') : new RegExp(pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+                            const lines = filteredContent.split('\n');
+                            
+                            lines.forEach((line, lineIndex) => {
+                                if (regex.test(line)) {
+                                    decorations.push({
+                                        range: new monaco.Range(
+                                            lineIndex + 1,
+                                            1,
+                                            lineIndex + 1,
+                                            line.length + 1
+                                        ),
+                                        options: {
+                                            isWholeLine: true,
+                                            className: `highlight-${index}`
+                                        }
+                                    });
+                                }
+                                regex.lastIndex = 0; // 重置正则表达式状态
+                            });
+                        }
                     });
 
                     filteredEditor.deltaDecorations([], decorations);
@@ -947,6 +984,35 @@
                 console.error('过滤错误:', err);
                 filteredEditor.setValue(`错误: ${err.message || '过滤失败'}`);
             }
+        }
+
+        function parseLineNumbers(input) {
+            if (!input.trim()) return [];
+            
+            const lineNumbers = new Set();
+            const parts = input.split(',').map(part => part.trim());
+            
+            for (const part of parts) {
+                // 处理范围 (例如: "1-100")
+                const rangeMatch = part.match(/^(\d+)-(\d+)$/);
+                if (rangeMatch) {
+                    const start = parseInt(rangeMatch[1]);
+                    const end = parseInt(rangeMatch[2]);
+                    if (start > end) continue;
+                    for (let i = start; i <= end; i++) {
+                        lineNumbers.add(i);
+                    }
+                    continue;
+                }
+                
+                // 处理单个数字
+                const numberMatch = part.match(/^\d+$/);
+                if (numberMatch) {
+                    lineNumbers.add(parseInt(part));
+                }
+            }
+            
+            return Array.from(lineNumbers).sort((a, b) => a - b);
         }
 
         async function openFile() {
