@@ -271,6 +271,26 @@ function createMenu() {
             label: '文件',
             submenu: [
                 {
+                    label: '新建',
+                    accelerator: 'CmdOrCtrl+N',
+                    click: () => {
+                        // 启动新的应用程序实例
+                        const { spawn } = require('child_process');
+                        const path = require('path');
+                        const electron = require('electron');
+                        
+                        // 获取当前应用程序的路径
+                        const appPath = process.argv[0];
+                        const appDir = path.dirname(process.argv[1]);
+                        
+                        // 在新进程中启动应用程序
+                        spawn(appPath, [appDir], {
+                            detached: true,
+                            stdio: 'ignore'
+                        }).unref();
+                    }
+                },
+                {
                     label: '打开文件',
                     click: () => {
                         mainWindow.webContents.send('menu:open-file');
