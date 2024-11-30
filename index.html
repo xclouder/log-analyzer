@@ -288,12 +288,12 @@
             monaco.languages.setMonarchTokensProvider('unreallog', {
                 tokenizer: {
                     root: [
-                        // 错误日志
-                        [/^.*\[.*Error.*\].*$/, 'error-line'],
-                        // 警告日志
-                        [/^.*\[.*Warning.*\].*$/, 'warning-line'],
-                        // Verbose日志
-                        [/^.*\[.*Verbose.*\].*$/, 'verbose-line'],
+                        // 错误日志 - 使用单词边界\b确保只匹配完整的Error单词
+                        [/^.*\b(?:Error:|error:]|Error]|LogError)\b.*$/, 'error-line'],
+                        // 警告日志 - 使用单词边界\b确保只匹配完整的Warning单词
+                        [/^.*\b(?:Warning:|Warning:]|LogWarning)\b.*$/, 'warning-line'],
+                        // Verbose日志 - 使用单词边界\b确保只匹配完整的Verbose单词
+                        [/^.*\b(?:Verbose:|Verbose:]|LogVerbose)\b.*$/, 'verbose-line'],
                         // 默认为Log级别
                         [/^.*$/, 'log-line'],
                     ]
@@ -349,7 +349,9 @@
                     const filteredEditorElement = document.getElementById('filtered-editor');
                     
                     if (sourceEditorElement.contains(activeElement) || filteredEditorElement.contains(activeElement)) {
-                        const targetEditor = sourceEditorElement.contains(activeElement) ? sourceEditorElement : filteredEditorElement;
+                        const targetEditor = sourceEditorElement.contains(activeElement) ? 
+                            document.getElementById('editor') : 
+                            document.getElementById('filtered-editor');
                         
                         if (currentFullscreenEditor === targetEditor) {
                             // 退出全屏
