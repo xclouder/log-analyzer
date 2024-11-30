@@ -149,6 +149,12 @@
             flex-direction: column;
             gap: 2px;
             padding: 2px 0;
+            transition: background-color 0.3s;
+        }
+        .filter-section.drag-over {
+            background-color: rgba(76, 175, 80, 0.1);
+            outline: 2px dashed #4CAF50;
+            outline-offset: -2px;
         }
         .filter-section.collapsed {
             display: none;
@@ -281,13 +287,9 @@
             monaco.languages.setMonarchTokensProvider('unreallog', {
                 tokenizer: {
                     root: [
-                        // 错误日志 - 使用单词边界\b确保只匹配完整的Error单词
-                        [/^.*\b(?:Error:|error:]|Error]|LogError)\b.*$/, 'error-line'],
-                        // 警告日志 - 使用单词边界\b确保只匹配完整的Warning单词
-                        [/^.*\b(?:Warning:|Warning:]|LogWarning)\b.*$/, 'warning-line'],
-                        // Verbose日志 - 使用单词边界\b确保只匹配完整的Verbose单词
-                        [/^.*\b(?:Verbose:|Verbose:]|LogVerbose)\b.*$/, 'verbose-line'],
-                        // 默认为Log级别
+                        [/^.*\b(?:Error|ERROR|error|Failed|FAILED|failed|Exception|exception)\b.*$/, 'error-line'],
+                        [/^.*\b(?:Warning|WARNING|warning)\b.*$/, 'warning-line'],
+                        [/^.*\b(?:Verbose|VERBOSE|verbose)\b.*$/, 'verbose-line'],
                         [/^.*$/, 'log-line'],
                     ]
                 }
@@ -304,10 +306,17 @@
                     { token: 'log-line', foreground: 'FFFFFF' }
                 ],
                 colors: {
-                    'editor.background': '#1E1E1E'
+                    'editor.foreground': '#FFFFFF',
+                    'editor.background': '#1E1E1E',
+                    'editorCursor.foreground': '#FFFFFF',
+                    'editor.lineHighlightBackground': '#2A2A2A',
+                    'editorLineNumber.foreground': '#858585',
+                    'editor.selectionBackground': '#404040',
+                    'editor.inactiveSelectionBackground': '#303030'
                 }
             });
 
+            // 创建编辑器实例
             editor = monaco.editor.create(document.getElementById('editor'), {
                 value: '',
                 language: 'unreallog',
@@ -319,6 +328,7 @@
                 automaticLayout: true
             });
 
+            // 创建过滤后的编辑器实例
             filteredEditor = monaco.editor.create(document.getElementById('filtered-editor'), {
                 value: '',
                 language: 'unreallog',
@@ -329,6 +339,114 @@
                 scrollBeyondLastLine: false,
                 automaticLayout: true,
                 readOnly: true
+            });
+
+            // 设置拖拽事件监听器
+            const editorContainer = document.getElementById('editor');
+            const filteredContainer = document.getElementById('filtered-editor');
+            const filterSection = document.getElementById('filter-section');
+
+            // 编辑器容器的拖拽事件
+            editorContainer.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                editor.getDomNode().classList.add('drag-over');
+                filteredContainer.classList.remove('drag-over');
+                filterSection.classList.remove('drag-over');
+            });
+
+            editorContainer.addEventListener('dragleave', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                editor.getDomNode().classList.remove('drag-over');
+            });
+
+            editorContainer.addEventListener('drop', async (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                editor.getDomNode().classList.remove('drag-over');
+
+                const files = Array.from(e.dataTransfer.files);
+                if (files.length === 0) return;
+
+                const file = files[0];
+                try {
+                    const content = await window.electronAPI.readFile(file.path);
+                    if (content !== null) {
+                        editor.setValue(content);
+                        currentFilePath = file.path;
+                    }
+                } catch (err) {
+                    console.error('Error reading file:', err);
+                    alert('读取文件失败: ' + err.message);
+                }
+            });
+
+            // 过滤器区域的拖拽事件
+            filterSection.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                
+                const isJsonFile = Array.from(e.dataTransfer.items).some(item => 
+                    item.kind === 'file' && (
+                        item.type.toLowerCase() === 'application/json' || 
+                        (item.getAsFile()?.name || '').toLowerCase().endsWith('.json')
+                    )
+                );
+
+                if (isJsonFile) {
+                    filterSection.classList.add('drag-over');
+                    editor.getDomNode().classList.remove('drag-over');
+                    filteredContainer.classList.remove('drag-over');
+                }
+            });
+
+            filterSection.addEventListener('dragleave', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                filterSection.classList.remove('drag-over');
+            });
+
+            filterSection.addEventListener('drop', async (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                filterSection.classList.remove('drag-over');
+
+                const files = Array.from(e.dataTransfer.files);
+                if (files.length === 0) return;
+
+                const file = files[0];
+                if (file.name.toLowerCase().endsWith('.json')) {
+                    try {
+                        const fileContent = await window.electronAPI.readFile(file.path);
+                        const config = JSON.parse(fileContent);
+                        
+                        if (!config || !config.patterns) {
+                            throw new Error('无效的配置格式');
+                        }
+
+                        if (!e.ctrlKey && !e.metaKey) {
+                            clearFilters();
+                        }
+
+                        currentFilterConfig.patterns = currentFilterConfig.patterns.concat(config.patterns);
+                        updateFilterUI();
+                    } catch (err) {
+                        console.error('加载配置错误:', err);
+                        alert('加载配置错误: ' + err.message);
+                    }
+                }
+            });
+
+            // 阻止文档级别的拖拽事件
+            document.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+            });
+
+            document.addEventListener('drop', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
             });
 
             // 添加F11全屏切换事件监听
@@ -843,50 +961,6 @@
         function updateFileInfo(filePath) {
         }
 
-        function handleDragOver(e) {
-            e.preventDefault();
-            e.stopPropagation();
-            e.dataTransfer.dropEffect = 'copy';
-            document.getElementById('editor').classList.add('drag-over');
-        }
-
-        function handleDragLeave(e) {
-            e.preventDefault();
-            e.stopPropagation();
-            document.getElementById('editor').classList.remove('drag-over');
-        }
-
-        async function handleDrop(e) {
-            e.preventDefault();
-            e.stopPropagation();
-            document.getElementById('editor').classList.remove('drag-over');
-
-            const files = e.dataTransfer.files;
-            if (files.length > 0) {
-                const file = files[0];
-                try {
-                    // 关闭当前文件（如果有的话）
-                    if (currentFilePath) {
-                        editor.setValue('');
-                        filteredEditor.setValue('');
-                        currentFilePath = null;
-                    }
-                    
-                    // 清除过滤器
-                    clearFilters();
-                    
-                    // 打开新文件
-                    const content = await window.electronAPI.readFile(file.path);
-                    currentFilePath = file.path;
-                    editor.setValue(content);
-                    
-                } catch (err) {
-                    console.error('Error reading dropped file:', err);
-                    alert('读取文件失败: ' + err.message);
-                }
-            }
-        }
-
         function toggleFilterPanel() {
             const filterToggle = document.querySelector('.filter-toggle');
             const filterSection = document.getElementById('filter-section');
@@ -894,10 +968,6 @@
             filterToggle.classList.toggle('collapsed');
             filterSection.classList.toggle('collapsed');
         }
-
-        document.body.addEventListener('dragover', handleDragOver);
-        document.body.addEventListener('dragleave', handleDragLeave);
-        document.body.addEventListener('drop', handleDrop);
     </script>
 </body>
 </html>

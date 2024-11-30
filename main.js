@@ -1,7 +1,6 @@
 const { app, BrowserWindow, ipcMain, dialog, Menu, shell } = require('electron');
 const path = require('path');
-const fs = require('fs');  // 添加fs模块的引入
-const fsPromises = fs.promises;  // 使用 fs.promises 以支持异步操作
+const fs = require('fs').promises;  // 使用 promises 版本的 fs
 
 let mainWindow;
 let currentLogContent = '';
@@ -62,7 +61,7 @@ ipcMain.handle('dialog:openFile', async () => {
     if (!result.canceled && result.filePaths.length > 0) {
         const filePath = result.filePaths[0];
         try {
-            const content = await fsPromises.readFile(filePath, 'utf8');
+            const content = await fs.readFile(filePath, 'utf8');
             currentLogContent = content;
             currentFilePath = filePath;
             updateWindowTitle(filePath);
@@ -87,15 +86,29 @@ ipcMain.handle('dialog:saveFile', async (event, { filePath, content }) => {
 // 添加文件读取处理器
 ipcMain.handle('file:read', async (event, filePath) => {
     try {
-        const content = await fsPromises.readFile(filePath, 'utf8');
-        currentLogContent = content;
-        currentFilePath = filePath;
-        updateWindowTitle(filePath);
-        log('File read:', filePath);
-        return content;
-    } catch (err) {
-        logError('Error reading file:', err);
-        throw err;
+        return await fs.readFile(filePath, 'utf8');
+    } catch (error) {
+        throw new Error(`读取文件失败: ${error.message}`);
+    }
+});
+
+ipcMain.handle('file:stats', async (event, filePath) => {
+    try {
+        return await fs.stat(filePath);
+    } catch (error) {
+        throw new Error(`获取文件信息失败: ${error.message}`);
+    }
+});
+
+ipcMain.handle('file:read-chunk', async (event, filePath, offset, length) => {
+    try {
+        const fileHandle = await fs.open(filePath, 'r');
+        const buffer = Buffer.alloc(length);
+        const { bytesRead } = await fileHandle.read(buffer, 0, length, offset);
+        await fileHandle.close();
+        return buffer.toString('utf8', 0, bytesRead);
+    } catch (error) {
+        throw new Error(`读取文件块失败: ${error.message}`);
     }
 });
 
@@ -108,14 +121,14 @@ ipcMain.handle('file:reload', async () => {
 
         // 检查文件是否存在
         try {
-            await fsPromises.access(currentFilePath);
+            await fs.access(currentFilePath);
         } catch (err) {
             dialog.showErrorBox('错误', '当前文件已经不存在');
             return null;
         }
 
         // 重新读取文件内容
-        const content = await fsPromises.readFile(currentFilePath, 'utf8');
+        const content = await fs.readFile(currentFilePath, 'utf8');
         currentLogContent = content;
         updateWindowTitle(currentFilePath);
         log('File reloaded:', currentFilePath);
@@ -138,7 +151,7 @@ ipcMain.handle('file:show-in-folder', async () => {
 
         // 检查文件是否存在
         try {
-            await fsPromises.access(currentFilePath);
+            await fs.access(currentFilePath);
         } catch (err) {
             dialog.showErrorBox('错误', '此文件已不存在');
             return;
@@ -282,7 +295,7 @@ ipcMain.handle('loadFilterConfig', async () => {
 ipcMain.handle('filter:save-config', async (event, config, filePath) => {
     try {
         log('Saving config to file:', config);
-        await fsPromises.writeFile(filePath, JSON.stringify(config, null, 2));
+        await fs.writeFile(filePath, JSON.stringify(config, null, 2));
         return { success: true };
     } catch (err) {
         logError('Error saving filter config:', err);
@@ -366,7 +379,7 @@ function createMenu() {
                             const configPath = result.filePaths[0];
                             try {
                                 log('Reading config file:', configPath);
-                                const configData = await fsPromises.readFile(configPath, 'utf-8');
+                                const configData = await fs.readFile(configPath, 'utf-8');
                                 const config = JSON.parse(configData);
                                 log('Sending config to renderer:', config);
                                 mainWindow.webContents.send('filter:load-config-result', config);
