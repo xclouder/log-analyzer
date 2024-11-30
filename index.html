@@ -406,6 +406,13 @@
             }
         });
 
+        // 监听在系统文件夹中显示事件
+        window.electronAPI.onMenuShowInFolder(async () => {
+            if (currentFilePath) {
+                await window.electronAPI.showItemInFolder();
+            }
+        });
+
         window.electronAPI.onFilterSaveConfig(async (event, filePath) => {
             try {
                 // 在保存之前更新当前配置

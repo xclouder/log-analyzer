@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog, Menu } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, Menu, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');  // 添加fs模块的引入
 const fsPromises = fs.promises;  // 使用 fs.promises 以支持异步操作
@@ -126,6 +126,28 @@ ipcMain.handle('file:reload', async () => {
     } catch (err) {
         logError('Error reloading file:', err);
         return null;
+    }
+});
+
+// 处理在系统文件夹中显示文件的请求
+ipcMain.handle('file:show-in-folder', async () => {
+    try {
+        if (!currentFilePath) {
+            return;
+        }
+
+        // 检查文件是否存在
+        try {
+            await fsPromises.access(currentFilePath);
+        } catch (err) {
+            dialog.showErrorBox('错误', '此文件已不存在');
+            return;
+        }
+
+        // 在文件管理器中显示并选中文件
+        shell.showItemInFolder(currentFilePath);
+    } catch (err) {
+        logError('Error showing file in folder:', err);
     }
 });
 
@@ -305,6 +327,12 @@ function createMenu() {
                     accelerator: 'CmdOrCtrl+R',
                     click: () => {
                         mainWindow.webContents.send('menu:reload-file');
+                    }
+                },
+                {
+                    label: '在系统文件夹中显示',
+                    click: async () => {
+                        mainWindow.webContents.send('menu:show-in-folder');
                     }
                 },
                 { type: 'separator' },

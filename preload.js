@@ -17,4 +17,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
     readFile: (filePath) => ipcRenderer.invoke('file:read', filePath),
     reloadCurrentFile: () => ipcRenderer.invoke('file:reload'),
     onReloadFile: (callback) => ipcRenderer.on('menu:reload-file', callback),
+    showItemInFolder: () => ipcRenderer.invoke('file:show-in-folder'),
+    onMenuShowInFolder: (callback) => ipcRenderer.on('menu:show-in-folder', callback),
 });
