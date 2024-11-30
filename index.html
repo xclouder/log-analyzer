@@ -43,12 +43,6 @@
             border-radius: 3px;
             width: 200px;
         }
-        #file-info {
-            color: #888;
-            margin-left: auto;
-            font-family: Arial, sans-serif;
-            font-size: 12px;
-        }
         .editors-container {
             display: flex;
             flex: 1;
@@ -250,7 +244,6 @@
                 <i>▼</i>
                 <span>过滤条件</span>
             </div>
-            <span id="file-info"></span>
         </div>
         <div class="filter-section" id="filter-section">
             <div class="filter-container" id="filter-container">
@@ -836,18 +829,11 @@
                 const { content, filePath } = result;
                 currentFilePath = filePath;
                 editor.setValue(content);
-                updateFileInfo(filePath);
                 clearFilters();
             }
         }
 
         function updateFileInfo(filePath) {
-            if (filePath) {
-                const fileName = filePath.split(/[/\\]/).pop();
-                fileInfo.textContent = `当前文件: ${fileName}`;
-            } else {
-                fileInfo.textContent = '';
-            }
         }
 
         function handleDragOver(e) {
@@ -877,7 +863,6 @@
                         editor.setValue('');
                         filteredEditor.setValue('');
                         currentFilePath = null;
-                        document.getElementById('file-info').textContent = '';
                     }
                     
                     // 清除过滤器
@@ -887,7 +872,6 @@
                     const content = await window.electronAPI.readFile(file.path);
                     currentFilePath = file.path;
                     editor.setValue(content);
-                    document.getElementById('file-info').textContent = `文件: ${file.name}`;
                     
                 } catch (err) {
                     console.error('Error reading dropped file:', err);

@@ -29,7 +29,8 @@ function createWindow() {
             contextIsolation: true,
             nodeIntegration: false,
             preload: path.join(__dirname, 'preload.js')
-        }
+        },
+        title: 'LogAnalyzer'
     });
 
     mainWindow.loadFile('index.html');
@@ -64,6 +65,7 @@ ipcMain.handle('dialog:openFile', async () => {
             const content = await fsPromises.readFile(filePath, 'utf8');
             currentLogContent = content;
             currentFilePath = filePath;
+            updateWindowTitle(filePath);
             log('File opened:', filePath);
             return {
                 content,
@@ -88,6 +90,7 @@ ipcMain.handle('file:read', async (event, filePath) => {
         const content = await fsPromises.readFile(filePath, 'utf8');
         currentLogContent = content;
         currentFilePath = filePath;
+        updateWindowTitle(filePath);
         log('File read:', filePath);
         return content;
     } catch (err) {
@@ -114,6 +117,7 @@ ipcMain.handle('file:reload', async () => {
         // 重新读取文件内容
         const content = await fsPromises.readFile(currentFilePath, 'utf8');
         currentLogContent = content;
+        updateWindowTitle(currentFilePath);
         log('File reloaded:', currentFilePath);
         return {
             content,
@@ -367,4 +371,12 @@ function createMenu() {
         }
     ]);
     Menu.setApplicationMenu(menu);
+}
+
+// 更新窗口标题
+function updateWindowTitle(filePath) {
+    if (mainWindow) {
+        const title = filePath ? `LogAnalyzer - ${filePath}` : 'LogAnalyzer';
+        mainWindow.setTitle(title);
+    }
 }
