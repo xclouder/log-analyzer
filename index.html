@@ -399,6 +399,20 @@
             openFile();
         });
 
+        // 监听重新加载文件事件
+        window.electronAPI.onReloadFile(async () => {
+            if (!currentFilePath) {
+                return;
+            }
+            
+            const result = await window.electronAPI.reloadCurrentFile();
+            if (result) {
+                const { content, filePath } = result;
+                editor.setValue(content);
+                updateFileInfo(filePath);
+            }
+        });
+
         window.electronAPI.onFilterSaveConfig(async (event, filePath) => {
             try {
                 // 在保存之前更新当前配置

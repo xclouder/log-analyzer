@@ -5,6 +5,7 @@ const fsPromises = fs.promises;  // 使用 fs.promises 以支持异步操作
 
 let mainWindow;
 let currentLogContent = '';
+let currentFilePath = '';
 let isLoggingEnabled = false;
 
 // 日志控制函数
@@ -62,6 +63,7 @@ ipcMain.handle('dialog:openFile', async () => {
         try {
             const content = await fsPromises.readFile(filePath, 'utf8');
             currentLogContent = content;
+            currentFilePath = filePath;
             log('File opened:', filePath);
             return {
                 content,
@@ -85,11 +87,41 @@ ipcMain.handle('file:read', async (event, filePath) => {
     try {
         const content = await fsPromises.readFile(filePath, 'utf8');
         currentLogContent = content;
+        currentFilePath = filePath;
         log('File read:', filePath);
         return content;
     } catch (err) {
         logError('Error reading file:', err);
         throw err;
+    }
+});
+
+// 处理重新加载当前文件的请求
+ipcMain.handle('file:reload', async () => {
+    try {
+        if (!currentLogContent || !mainWindow) {
+            return null;
+        }
+
+        // 检查文件是否存在
+        try {
+            await fsPromises.access(currentFilePath);
+        } catch (err) {
+            dialog.showErrorBox('错误', '当前文件已经不存在');
+            return null;
+        }
+
+        // 重新读取文件内容
+        const content = await fsPromises.readFile(currentFilePath, 'utf8');
+        currentLogContent = content;
+        log('File reloaded:', currentFilePath);
+        return {
+            content,
+            filePath: currentFilePath
+        };
+    } catch (err) {
+        logError('Error reloading file:', err);
+        return null;
     }
 });
 
@@ -242,6 +274,13 @@ function createMenu() {
                     label: '打开文件',
                     click: () => {
                         mainWindow.webContents.send('menu:open-file');
+                    }
+                },
+                {
+                    label: '重新加载文件',
+                    accelerator: 'CmdOrCtrl+R',
+                    click: () => {
+                        mainWindow.webContents.send('menu:reload-file');
                     }
                 },
                 { type: 'separator' },

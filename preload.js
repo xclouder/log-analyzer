@@ -15,4 +15,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
     onFilterSaveConfig: (callback) => ipcRenderer.on('filter:save-config-dialog', callback),
     onFilterLoadConfig: (callback) => ipcRenderer.on('filter:load-config-result', callback),
     readFile: (filePath) => ipcRenderer.invoke('file:read', filePath),
+    reloadCurrentFile: () => ipcRenderer.invoke('file:reload'),
+    onReloadFile: (callback) => ipcRenderer.on('menu:reload-file', callback),
 });
