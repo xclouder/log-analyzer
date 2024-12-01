@@ -1,17 +1,21 @@
 {
   "name": "log-analyzer",
   "version": "1.0.0",
-  "description": "Log file analyzer with advanced filtering capabilities",
+  "description": "A powerful log analysis tool",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "pack": "electron-builder --dir",
-    "dist": "electron-builder",
-    "build-portable": "electron-builder --win portable"
+    "build": "electron-builder --win portable",
+    "publish": "electron-builder --win portable --publish always"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/xclouder/log-analyzer.git"
   },
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "electron-updater": "^6.1.4",
     "monaco-editor": "^0.40.0"
   },
   "devDependencies": {
@@ -26,7 +30,8 @@
     },
     "win": {
       "target": "portable",
-      "icon": "icon.ico"
+      "icon": "icon.ico",
+      "publish": ["github"]
     },
     "files": [
       "**/*",
@@ -46,7 +51,9 @@
       {
         "from": "node_modules/monaco-editor/min",
         "to": "monaco-editor/min",
-        "filter": ["**/*"]
+        "filter": [
+          "**/*"
+        ]
       }
     ],
     "portable": {

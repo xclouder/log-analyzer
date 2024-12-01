@@ -1,6 +1,11 @@
 const { app, BrowserWindow, ipcMain, dialog, Menu, shell } = require('electron');
+const { autoUpdater } = require('electron-updater');
 const path = require('path');
 const fs = require('fs').promises;  // 使用 promises 版本的 fs
+
+// 自动更新配置
+autoUpdater.autoDownload = false;
+autoUpdater.autoInstallOnAppQuit = true;
 
 let mainWindow;
 let currentLogContent = '';
@@ -35,6 +40,9 @@ function createWindow() {
     mainWindow.loadFile('index.html');
     // mainWindow.webContents.openDevTools(); // 注释掉这行，禁用开发者工具的自动打开
     createMenu();
+    
+    // 检查更新
+    checkForUpdates();
 }
 
 app.whenReady().then(() => {
@@ -443,6 +451,55 @@ function createMenu() {
     ]);
     Menu.setApplicationMenu(menu);
 }
+
+// 检查更新
+async function checkForUpdates() {
+    try {
+        await autoUpdater.checkForUpdates();
+    } catch (err) {
+        console.error('Error checking for updates:', err);
+    }
+}
+
+// 更新事件处理
+autoUpdater.on('update-available', (info) => {
+    if (!mainWindow) return;
+    
+    dialog.showMessageBox(mainWindow, {
+        type: 'info',
+        title: '发现新版本',
+        message: `发现新版本 ${info.version}，是否下载？`,
+        buttons: ['下载', '稍后'],
+        cancelId: 1
+    }).then(({ response }) => {
+        if (response === 0) {
+            autoUpdater.downloadUpdate();
+        }
+    });
+});
+
+autoUpdater.on('update-downloaded', (info) => {
+    if (!mainWindow) return;
+
+    dialog.showMessageBox(mainWindow, {
+        type: 'info',
+        title: '更新已就绪',
+        message: '新版本已下载完成，重启应用以完成更新。',
+        buttons: ['现在重启', '稍后'],
+        cancelId: 1
+    }).then(({ response }) => {
+        if (response === 0) {
+            autoUpdater.quitAndInstall(false, true);
+        }
+    });
+});
+
+autoUpdater.on('error', (err) => {
+    console.error('AutoUpdater error:', err);
+    if (mainWindow) {
+        dialog.showErrorBox('更新错误', '检查更新时发生错误，请稍后重试。');
+    }
+});
 
 // 更新窗口标题
 function updateWindowTitle(filePath) {
