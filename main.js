@@ -1,13 +1,15 @@
 const { app, BrowserWindow, ipcMain, dialog, Menu, shell } = require('electron');
 const { autoUpdater } = require('electron-updater');
 const path = require('path');
-const fs = require('fs').promises;  // 使用 promises 版本的 fs
+const fs = require('fs').promises;
+const PluginManager = require('./src/plugins/plugin-manager');
 
 // 自动更新配置
 autoUpdater.autoDownload = false;
 autoUpdater.autoInstallOnAppQuit = true;
 
 let mainWindow;
+let pluginManager;
 let currentLogContent = '';
 let currentFilePath = '';
 let isLoggingEnabled = false;
@@ -36,6 +38,15 @@ function createWindow() {
         },
         title: 'LogAnalyzer'
     });
+
+    // 初始化插件管理器
+    pluginManager = new PluginManager(mainWindow);
+    
+    // 加载插件
+    const pluginsDir = path.join(__dirname, 'plugins');
+    fs.mkdir(pluginsDir, { recursive: true })
+        .then(() => pluginManager.loadPlugins(pluginsDir))
+        .catch(err => console.error('Error creating plugins directory:', err));
 
     mainWindow.loadFile('index.html');
     // mainWindow.webContents.openDevTools(); // 注释掉这行，禁用开发者工具的自动打开
@@ -94,14 +105,21 @@ ipcMain.handle('dialog:saveFile', async (event, { filePath, content }) => {
 // 添加文件读取处理器
 ipcMain.handle('file:read', async (event, filePath) => {
     try {
-        const content = await fs.readFile(filePath, 'utf8');
+        let content = await fs.readFile(filePath, 'utf8');
+        
+        // 通过插件处理文件内容
+        if (pluginManager) {
+            content = await pluginManager.processFileContent(filePath, content);
+        }
+        
         currentLogContent = content;
         currentFilePath = filePath;
         updateWindowTitle(filePath);
         log('File read:', filePath);
         return content;
     } catch (error) {
-        throw new Error(`读取文件失败: ${error.message}`);
+        logError('Error reading file:', error);
+        throw error;
     }
 });
 
@@ -199,6 +217,15 @@ ipcMain.handle('file:show-in-folder', async () => {
         shell.showItemInFolder(currentFilePath);
     } catch (err) {
         logError('Error showing file in folder:', err);
+    }
+});
+
+// 添加插件相关的IPC处理器
+ipcMain.on('plugin:message', (event, data) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    const plugin = pluginManager.getPlugins().find(p => p.window === win);
+    if (plugin) {
+        plugin.handleMessage(data);
     }
 });
 
