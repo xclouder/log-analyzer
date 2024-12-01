@@ -1,6 +1,6 @@
 {
   "name": "log-analyzer",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "description": "A powerful log analysis tool",
   "main": "main.js",
   "scripts": {
