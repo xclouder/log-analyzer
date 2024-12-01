@@ -5,8 +5,8 @@
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "build": "electron-builder --win portable",
-    "publish": "electron-builder --win portable --publish always"
+    "build:portable": "electron-builder --win portable",
+    "dist": "electron-builder --win nsis --publish always"
   },
   "repository": {
     "type": "git",
@@ -36,7 +36,7 @@
       "output": "dist"
     },
     "win": {
-      "target": "portable",
+      "target": "nsis",
       "icon": "icon.ico"
     },
     "files": [
@@ -64,6 +64,14 @@
     ],
     "portable": {
       "artifactName": "LogAnalyzer.exe"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": true,
+      "allowElevation": true,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "runAfterFinish": true
     }
   }
 }
