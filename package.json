@@ -23,15 +23,21 @@
     "electron-builder": "^24.6.4"
   },
   "build": {
-    "appId": "com.loganalyzer.app",
+    "appId": "org.xclouder.loganalyzer",
     "productName": "LogAnalyzer",
+    "publish" : [
+      {
+        "provider": "github",
+        "owner": "xclouder",
+        "repo": "log-analyzer"
+      }
+    ],
     "directories": {
       "output": "dist"
     },
     "win": {
       "target": "portable",
-      "icon": "icon.ico",
-      "publish": ["github"]
+      "icon": "icon.ico"
     },
     "files": [
       "**/*",
@@ -57,7 +63,7 @@
       }
     ],
     "portable": {
-      "artifactName": "LogAnalyzer-Portable.exe"
+      "artifactName": "LogAnalyzer.exe"
     }
   }
 }
