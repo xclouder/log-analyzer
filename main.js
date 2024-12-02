@@ -27,6 +27,18 @@ function logError(...args) {
     }
 }
 
+// 获取插件目录路径
+function getPluginsPath() {
+    // 判断是开发环境还是生产环境
+    if (app.isPackaged) {
+        // 生产环境，使用 extraResources 路径
+        return path.join(process.resourcesPath, 'plugins');
+    } else {
+        // 开发环境，使用项目目录
+        return path.join(__dirname, 'plugins');
+    }
+}
+
 function createWindow() {
     mainWindow = new BrowserWindow({
         width: 1200,
@@ -41,19 +53,19 @@ function createWindow() {
 
     // 初始化插件管理器
     pluginManager = new PluginManager(mainWindow);
-    
-    // 加载插件
-    const pluginsDir = path.join(__dirname, 'plugins');
-    fs.mkdir(pluginsDir, { recursive: true })
-        .then(() => pluginManager.loadPlugins(pluginsDir))
-        .catch(err => console.error('Error creating plugins directory:', err));
+    const pluginsPath = getPluginsPath();
+    console.log('Loading plugins from:', pluginsPath);
+    pluginManager.loadPlugins(pluginsPath)
+        .then(() => {
+            mainWindow.loadFile('index.html');
+            // mainWindow.webContents.openDevTools(); // 注释掉这行，禁用开发者工具的自动打开
+            createMenu();
+            
+            // 检查更新
+            checkForUpdates();
+        })
+        .catch(err => console.error('Error loading plugins:', err));
 
-    mainWindow.loadFile('index.html');
-    // mainWindow.webContents.openDevTools(); // 注释掉这行，禁用开发者工具的自动打开
-    createMenu();
-    
-    // 检查更新
-    checkForUpdates();
 }
 
 app.whenReady().then(() => {
