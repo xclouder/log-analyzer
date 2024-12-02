@@ -44,15 +44,15 @@ class TikistarLogDecoderPlugin {
     }
 
     isEncryptedLogFile(filePath) {
-        const isEncrypted = filePath.toLowerCase().endsWith('.encoded.log');
+        const isEncrypted = filePath.toLowerCase().includes('tkencoded_');
         console.log('[TikistarLogDecoder] isEncryptedLogFile check:', filePath, isEncrypted);
         return isEncrypted;
     }
 
     getDecodedFilePath(filePath) {
         const dir = path.dirname(filePath);
-        const basename = path.basename(filePath, '.encoded.log');
-        return path.join(dir, `${basename}.log`);
+        const basename = path.basename(filePath).replace('tkencoded_', '');
+        return path.join(dir, `${basename}`);
     }
 
     decodeFile(sourcePath, destPath) {
