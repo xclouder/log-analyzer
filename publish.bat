@@ -1,2 +1,4 @@
 set DEBUG=electron-builder
-npm run dist > publish.log
+npm run dist
+
+pause

@@ -1,0 +1,7 @@
+{
+    "name": "tikistar-log-decoder",
+    "version": "1.0.0",
+    "main": "index.js",
+    "title": "TikiStar Log Decoder",
+    "description": "Automatically decodes .encoded.log files using LogDecoder.exe"
+}
