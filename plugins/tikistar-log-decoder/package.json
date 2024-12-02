@@ -1,7 +1,17 @@
 {
     "name": "tikistar-log-decoder",
     "version": "1.0.0",
+    "description": "Decoder plugin for Tikistar encrypted log files",
     "main": "index.js",
-    "title": "TikiStar Log Decoder",
-    "description": "Automatically decodes .encoded.log files using LogDecoder.exe"
+    "title": "Tikistar Log Decoder",
+    "author": "LogAnalyzer",
+    "license": "MIT",
+    "engines": {
+        "loganalyzer": "^1.0.0"
+    },
+    "contributes": {
+        "fileTypes": [
+            ".tlog"
+        ]
+    }
 }

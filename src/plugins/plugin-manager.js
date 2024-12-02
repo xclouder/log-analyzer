@@ -12,23 +12,22 @@ class PluginManager {
     // 加载插件
     async loadPlugin(pluginPath) {
         try {
-            const plugin = require(pluginPath);
-            const pluginInstance = new plugin(this.api);
+            // 获取插件目录的 package.json
+            const packageJsonPath = path.join(pluginPath, 'package.json');
+            const packageJson = require(packageJsonPath);
             
-            // 注册插件
-            this.plugins.set(pluginInstance.id, pluginInstance);
+            // 获取插件主文件的完整路径
+            const mainPath = path.join(pluginPath, packageJson.main);
+            const PluginClass = require(mainPath);
             
-            // 如果插件提供文件处理功能，注册处理器
-            if (typeof pluginInstance.processFile === 'function') {
-                this.fileProcessors.push(pluginInstance);
+            const plugin = new PluginClass(this.api);
+            this.plugins.set(plugin.id, plugin);
+            
+            if (typeof plugin.activate === 'function') {
+                await plugin.activate();
             }
-
-            // 初始化插件
-            if (typeof pluginInstance.activate === 'function') {
-                await pluginInstance.activate();
-            }
-
-            return pluginInstance;
+            
+            return plugin;
         } catch (error) {
             console.error(`Failed to load plugin from ${pluginPath}:`, error);
             return null;
@@ -46,13 +45,8 @@ class PluginManager {
                     const manifestPath = path.join(pluginPath, 'package.json');
                     
                     try {
-                        const manifestContent = await fs.readFile(manifestPath, 'utf8');
-                        const manifest = JSON.parse(manifestContent);
-                        
-                        if (manifest.main) {
-                            const mainPath = path.join(pluginPath, manifest.main);
-                            await this.loadPlugin(mainPath);
-                        }
+                        await fs.access(manifestPath);
+                        await this.loadPlugin(pluginPath);
                     } catch (error) {
                         console.error(`Error loading plugin from ${pluginPath}:`, error);
                     }
@@ -76,6 +70,31 @@ class PluginManager {
         }
         
         return processedContent;
+    }
+
+    // 预处理文件路径
+    async preProcessFilePath(filePath) {
+        console.log('[PluginManager] Starting preProcessFilePath for:', filePath);
+        let processedPath = filePath;
+        
+        for (const plugin of this.plugins.values()) {
+            console.log(`[PluginManager] Checking plugin ${plugin.id} for onPreOpenFile method`);
+            if (typeof plugin.onPreOpenFile === 'function') {
+                try {
+                    console.log(`[PluginManager] Calling onPreOpenFile for plugin ${plugin.id}`);
+                    const newPath = await plugin.onPreOpenFile(processedPath);
+                    console.log(`[PluginManager] Plugin ${plugin.id} returned path:`, newPath);
+                    if (newPath && typeof newPath === 'string') {
+                        processedPath = newPath;
+                    }
+                } catch (error) {
+                    console.error(`[PluginManager] Error in plugin ${plugin.id} while preprocessing file path:`, error);
+                }
+            }
+        }
+        
+        console.log('[PluginManager] Final processed path:', processedPath);
+        return processedPath;
     }
 
     // 卸载插件

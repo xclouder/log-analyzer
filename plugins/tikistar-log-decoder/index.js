@@ -1,59 +1,90 @@
 const path = require('path');
-const fs = require('fs');
-const { exec } = require('child_process');
-const { promisify } = require('util');
+const { spawn } = require('child_process');
 
-const execAsync = promisify(exec);
-
-class TikiStarLogDecoderPlugin {
+class TikistarLogDecoderPlugin {
     constructor(api) {
-        this.api = api;
         this.id = 'tikistar-log-decoder';
-        this.decoderPath = path.join(__dirname, 'assets', 'LogDecoder.exe');
+        this.api = api;
     }
 
-    async activate() {
-        // Check if decoder exists
-        if (!fs.existsSync(this.decoderPath)) {
-            console.error('LogDecoder.exe not found in assets directory');
-            return;
-        }
-    }
-
-    async processFile(filePath, content) {
-        // Only process .encoded.log files
-        if (!filePath.endsWith('.encoded.log')) {
-            return filePath;
-        }
-
-        // Generate output path by removing 'encoded.' from the filename
-        const outputPath = filePath.replace('.encoded.log', '.log');
-
-        try {
-            // Delete existing output file if it exists
-            if (fs.existsSync(outputPath)) {
-                fs.unlinkSync(outputPath);
+    async onPreOpenFile(filePath) {
+        console.log('[TikistarLogDecoder] Processing file:', filePath);
+        
+        // 检查文件是否是加密的日志文件
+        if (this.isEncryptedLogFile(filePath)) {
+            console.log('[TikistarLogDecoder] File is encrypted log file');
+            // 获取解密后的文件路径
+            const decodedPath = this.getDecodedFilePath(filePath);
+            console.log('[TikistarLogDecoder] Decoded path will be:', decodedPath);
+            
+            // 删除已存在的解密文件
+            try {
+                await this.api.fs.unlink(decodedPath);
+                console.log('[TikistarLogDecoder] Removed existing decoded file');
+            } catch (e) {
+                // 如果文件不存在，忽略错误
+                console.log('[TikistarLogDecoder] No existing file to remove');
             }
-
-            // Run decoder
-            await execAsync(`"${this.decoderPath}" "${filePath}" "${outputPath}"`);
-
-            // Verify the output file exists
-            if (!fs.existsSync(outputPath)) {
-                throw new Error('Decoder failed to create output file');
+            
+            // 使用 LogDecoder.exe 解密文件
+            try {
+                console.log('[TikistarLogDecoder] Starting decoding process');
+                await this.decodeFile(filePath, decodedPath);
+                console.log('[TikistarLogDecoder] File decoded successfully');
+                return decodedPath;
+            } catch (error) {
+                console.error('[TikistarLogDecoder] Failed to decode log file:', error);
+                return filePath; // 如果解密失败，返回原始文件路径
             }
-
-            // Return the path of the decoded file
-            return outputPath;
-        } catch (error) {
-            console.error('Error decoding log file:', error);
-            throw error;
+        } else {
+            console.log('[TikistarLogDecoder] Not an encrypted log file');
         }
+        
+        return filePath;
     }
 
-    async deactivate() {
-        // Cleanup if needed
+    isEncryptedLogFile(filePath) {
+        const isEncrypted = filePath.toLowerCase().endsWith('.encoded.log');
+        console.log('[TikistarLogDecoder] isEncryptedLogFile check:', filePath, isEncrypted);
+        return isEncrypted;
+    }
+
+    getDecodedFilePath(filePath) {
+        const dir = path.dirname(filePath);
+        const basename = path.basename(filePath, '.encoded.log');
+        return path.join(dir, `${basename}.log`);
+    }
+
+    decodeFile(sourcePath, destPath) {
+        return new Promise((resolve, reject) => {
+            // 获取 LogDecoder.exe 的路径（假设它在插件目录中）
+            const decoderPath = path.join(__dirname, 'assets', 'LogDecoder.exe');
+            console.log('[TikistarLogDecoder] Using decoder at:', decoderPath);
+
+            const decoder = spawn(decoderPath, [sourcePath, destPath]);
+            
+            decoder.stdout.on('data', (data) => {
+                console.log(`[LogDecoder] ${data}`);
+            });
+            
+            decoder.stderr.on('data', (data) => {
+                console.error(`[LogDecoder Error] ${data}`);
+            });
+            
+            decoder.on('close', (code) => {
+                if (code === 0) {
+                    console.log('[TikistarLogDecoder] Decoding completed successfully');
+                    resolve();
+                } else {
+                    reject(new Error(`Decoder process exited with code ${code}`));
+                }
+            });
+            
+            decoder.on('error', (err) => {
+                reject(err);
+            });
+        });
     }
 }
 
-module.exports = TikiStarLogDecoderPlugin;
+module.exports = TikistarLogDecoderPlugin;

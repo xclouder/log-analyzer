@@ -80,14 +80,22 @@ ipcMain.handle('dialog:openFile', async () => {
     if (!result.canceled && result.filePaths.length > 0) {
         const filePath = result.filePaths[0];
         try {
-            const content = await fs.readFile(filePath, 'utf8');
-            currentLogContent = content;
-            currentFilePath = filePath;
-            updateWindowTitle(filePath);
-            log('File opened:', filePath);
+            // 通过插件预处理文件路径
+            const processedPath = await pluginManager.preProcessFilePath(filePath);
+            
+            // 读取文件内容
+            const content = await fs.readFile(processedPath, 'utf8');
+            
+            // 处理文件内容
+            const processedContent = await pluginManager.processFileContent(processedPath, content);
+            
+            currentLogContent = processedContent;
+            currentFilePath = processedPath;
+            updateWindowTitle(processedPath);
+            log('File opened:', processedPath);
             return {
-                content,
-                filePath
+                content: processedContent,
+                filePath: processedPath
             };
         } catch (err) {
             logError('Error reading file:', err);
@@ -105,18 +113,20 @@ ipcMain.handle('dialog:saveFile', async (event, { filePath, content }) => {
 // 添加文件读取处理器
 ipcMain.handle('file:read', async (event, filePath) => {
     try {
-        let content = await fs.readFile(filePath, 'utf8');
+        // 通过插件预处理文件路径
+        const processedPath = await pluginManager.preProcessFilePath(filePath);
         
-        // 通过插件处理文件内容
-        if (pluginManager) {
-            content = await pluginManager.processFileContent(filePath, content);
-        }
+        // 读取文件内容
+        const content = await fs.readFile(processedPath, 'utf8');
         
-        currentLogContent = content;
-        currentFilePath = filePath;
-        updateWindowTitle(filePath);
-        log('File read:', filePath);
-        return content;
+        // 处理文件内容
+        const processedContent = await pluginManager.processFileContent(processedPath, content);
+        
+        currentLogContent = processedContent;
+        currentFilePath = processedPath;
+        updateWindowTitle(processedPath);
+        log('File read:', processedPath);
+        return processedContent;
     } catch (error) {
         logError('Error reading file:', error);
         throw error;
@@ -125,7 +135,10 @@ ipcMain.handle('file:read', async (event, filePath) => {
 
 ipcMain.handle('file:stats', async (event, filePath) => {
     try {
-        return await fs.stat(filePath);
+        // 通过插件预处理文件路径
+        const processedPath = await pluginManager.preProcessFilePath(filePath);
+        
+        return await fs.stat(processedPath);
     } catch (error) {
         throw new Error(`获取文件信息失败: ${error.message}`);
     }
@@ -133,18 +146,21 @@ ipcMain.handle('file:stats', async (event, filePath) => {
 
 ipcMain.handle('file:read-chunk', async (event, filePath, offset, length) => {
     try {
-        const fileHandle = await fs.open(filePath, 'r');
+        // 通过插件预处理文件路径
+        const processedPath = await pluginManager.preProcessFilePath(filePath);
+        
+        const fileHandle = await fs.open(processedPath, 'r');
         const buffer = Buffer.alloc(length);
         const { bytesRead } = await fileHandle.read(buffer, 0, length, offset);
         await fileHandle.close();
         const content = buffer.toString('utf8', 0, bytesRead);
         
         // 如果是最后一个块，更新当前文件信息
-        const stats = await fs.stat(filePath);
+        const stats = await fs.stat(processedPath);
         if (offset + bytesRead >= stats.size) {
-            currentFilePath = filePath;
-            updateWindowTitle(filePath);
-            log('File read (chunked):', filePath);
+            currentFilePath = processedPath;
+            updateWindowTitle(processedPath);
+            log('File read (chunked):', processedPath);
         }
         
         return content;
@@ -170,13 +186,21 @@ ipcMain.handle('file:reload', async () => {
 
         // 重新读取文件内容
         try {
-            const content = await fs.readFile(currentFilePath, 'utf8');
-            currentLogContent = content;
-            updateWindowTitle(currentFilePath);
-            log('File reloaded:', currentFilePath);
+            // 通过插件预处理文件路径
+            const processedPath = await pluginManager.preProcessFilePath(currentFilePath);
+            
+            // 读取文件内容
+            const content = await fs.readFile(processedPath, 'utf8');
+            
+            // 处理文件内容
+            const processedContent = await pluginManager.processFileContent(processedPath, content);
+            
+            currentLogContent = processedContent;
+            updateWindowTitle(processedPath);
+            log('File reloaded:', processedPath);
             return {
-                content,
-                filePath: currentFilePath
+                content: processedContent,
+                filePath: processedPath
             };
         } catch (err) {
             logError('Error reloading file:', err);

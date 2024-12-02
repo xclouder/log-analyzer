@@ -1,10 +1,12 @@
 const { BrowserWindow } = require('electron');
 const path = require('path');
+const fs = require('fs').promises;
 
 class PluginAPI {
     constructor(mainWindow) {
         this.mainWindow = mainWindow;
         this.pluginWindows = new Map();
+        this.fs = fs;  // 暴露 fs 模块给插件使用
     }
 
     // 创建子窗口
