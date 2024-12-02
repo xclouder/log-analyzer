@@ -416,18 +416,30 @@ function createMenu() {
                     click: () => {
                         // 启动新的应用程序实例
                         const { spawn } = require('child_process');
-                        const path = require('path');
-                        const electron = require('electron');
                         
-                        // 获取当前应用程序的路径
-                        const appPath = process.argv[0];
-                        const appDir = path.dirname(process.argv[1]);
+                        let appPath;
+                        let args = [];
+                        
+                        if (process.platform === 'darwin') {
+                            // macOS
+                            appPath = process.execPath;
+                            const appContentsPath = path.dirname(path.dirname(process.execPath));
+                            args = ['--args', appContentsPath];
+                        } else if (process.platform === 'win32') {
+                            // Windows
+                            appPath = app.getPath('exe');
+                        } else {
+                            // Linux
+                            appPath = process.execPath;
+                        }
                         
                         // 在新进程中启动应用程序
-                        spawn(appPath, [appDir], {
+                        const child = spawn(appPath, args, {
                             detached: true,
                             stdio: 'ignore'
-                        }).unref();
+                        });
+                        
+                        child.unref();
                     }
                 },
                 {
