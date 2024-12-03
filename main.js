@@ -10,6 +10,7 @@ autoUpdater.autoInstallOnAppQuit = true;
 
 let mainWindow;
 let pluginManager;
+let pluginManagerWindow = null;
 let currentLogContent = '';
 let currentFilePath = '';
 let isLoggingEnabled = false;
@@ -51,29 +52,32 @@ function createWindow() {
         title: 'LogAnalyzer'
     });
 
-    // 初始化插件管理器
-    pluginManager = new PluginManager(mainWindow);
-    const pluginsPath = getPluginsPath();
-    console.log('Loading plugins from:', pluginsPath);
-    pluginManager.loadPlugins(pluginsPath)
-        .then(() => {
-            mainWindow.loadFile('index.html');
-            // mainWindow.webContents.openDevTools(); // 注释掉这行，禁用开发者工具的自动打开
-            createMenu();
-            
-            // 检查更新
-            checkForUpdates();
-        })
-        .catch(err => console.error('Error loading plugins:', err));
-
+    mainWindow.loadFile('index.html');
+    // mainWindow.webContents.openDevTools(); // 注释掉这行，禁用开发者工具的自动打开
+    createMenu();
+    
+    // 检查更新
+    checkForUpdates();
 }
 
-app.whenReady().then(() => {
-    createWindow();
+app.whenReady().then(async () => {
+    try {
+        // 初始化插件管理器
+        pluginManager = new PluginManager();
 
-    app.on('activate', function () {
-        if (BrowserWindow.getAllWindows().length === 0) createWindow();
-    });
+        // 创建主窗口
+        createWindow();
+
+        // 加载插件
+        await pluginManager.loadPlugins();
+        console.log('Plugins loaded successfully');
+
+        app.on('activate', function () {
+            if (BrowserWindow.getAllWindows().length === 0) createWindow();
+        });
+    } catch (err) {
+        console.error('Error during app initialization:', err);
+    }
 });
 
 app.on('window-all-closed', function () {
@@ -262,6 +266,34 @@ ipcMain.on('plugin:message', (event, data) => {
     const plugin = pluginManager.getPlugins().find(p => p.window === win);
     if (plugin) {
         plugin.handleMessage(data);
+    }
+});
+
+// 插件管理相关 IPC 处理
+ipcMain.handle('plugin:list', async () => {
+    try {
+        return pluginManager.getPlugins();
+    } catch (err) {
+        console.error('Error getting plugin list:', err);
+        throw err;
+    }
+});
+
+ipcMain.handle('plugin:install', async (event, zipPath) => {
+    try {
+        return await pluginManager.installPlugin(zipPath);
+    } catch (err) {
+        console.error('Error installing plugin:', err);
+        throw err;
+    }
+});
+
+ipcMain.handle('plugin:uninstall', async (event, pluginName) => {
+    try {
+        return await pluginManager.uninstallPlugin(pluginName);
+    } catch (err) {
+        console.error('Error uninstalling plugin:', err);
+        throw err;
     }
 });
 
@@ -505,6 +537,38 @@ function createMenu() {
                 },
                 { type: 'separator' },
                 { role: 'quit' }
+            ]
+        },
+        {
+            label: '插件',
+            submenu: [
+                {
+                    label: '插件管理',
+                    click: () => {
+                        if (pluginManagerWindow) {
+                            pluginManagerWindow.focus();
+                            return;
+                        }
+
+                        pluginManagerWindow = new BrowserWindow({
+                            width: 800,
+                            height: 600,
+                            parent: mainWindow,
+                            modal: true,
+                            webPreferences: {
+                                nodeIntegration: false,
+                                contextIsolation: true,
+                                preload: path.join(__dirname, 'preload.js')
+                            }
+                        });
+
+                        pluginManagerWindow.loadFile('plugin-manager.html');
+
+                        pluginManagerWindow.on('closed', () => {
+                            pluginManagerWindow = null;
+                        });
+                    }
+                }
             ]
         },
         {

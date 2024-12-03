@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>插件管理</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        .plugin-list {
+            margin-top: 20px;
+        }
+        .plugin-item {
+            background: white;
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 4px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        .plugin-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .plugin-name {
+            font-size: 16px;
+            font-weight: bold;
+        }
+        .plugin-version {
+            color: #666;
+            font-size: 14px;
+        }
+        .plugin-description {
+            color: #444;
+            margin: 10px 0;
+        }
+        .plugin-author {
+            color: #666;
+            font-size: 14px;
+        }
+        .plugin-actions {
+            margin-top: 10px;
+        }
+        .btn {
+            padding: 5px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            margin-right: 10px;
+        }
+        .btn-danger {
+            background: #dc3545;
+            color: white;
+        }
+        .btn-danger:disabled {
+            background: #e9a0a7;
+            cursor: not-allowed;
+        }
+        .btn-primary {
+            background: #007bff;
+            color: white;
+        }
+        .install-section {
+            margin-bottom: 20px;
+            padding: 15px;
+            background: white;
+            border-radius: 4px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        .drag-area {
+            border: 2px dashed #ccc;
+            padding: 20px;
+            text-align: center;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+        .drag-area.drag-over {
+            border-color: #007bff;
+            background: #e7f3ff;
+        }
+    </style>
+</head>
+<body>
+    <div class="install-section">
+        <h2>安装插件</h2>
+        <div class="drag-area" id="dragArea">
+            拖放插件包(.zip)到此处，或点击选择文件
+            <input type="file" id="fileInput" style="display: none" accept=".zip">
+        </div>
+    </div>
+
+    <h2>已安装插件</h2>
+    <div class="plugin-list" id="pluginList">
+        <!-- 插件列表将动态添加到这里 -->
+    </div>
+
+    <script>
+        const { pluginManager } = window.api;
+        
+        // 加载插件列表
+        async function loadPlugins() {
+            const plugins = await pluginManager.getPlugins();
+            const pluginList = document.getElementById('pluginList');
+            pluginList.innerHTML = '';
+            
+            plugins.forEach(plugin => {
+                const pluginElement = document.createElement('div');
+                pluginElement.className = 'plugin-item';
+                pluginElement.innerHTML = `
+                    <div class="plugin-header">
+                        <span class="plugin-name">${plugin.name}</span>
+                        <span class="plugin-version">v${plugin.version}</span>
+                    </div>
+                    <div class="plugin-description">${plugin.description || '无描述'}</div>
+                    <div class="plugin-author">作者: ${plugin.author}</div>
+                    <div class="plugin-actions">
+                        <button class="btn btn-danger" 
+                                onclick="uninstallPlugin('${plugin.name}')"
+                                ${plugin.isBuiltin ? 'disabled' : ''}>
+                            ${plugin.isBuiltin ? '内置插件' : '删除'}
+                        </button>
+                    </div>
+                `;
+                pluginList.appendChild(pluginElement);
+            });
+        }
+
+        // 卸载插件
+        async function uninstallPlugin(pluginName) {
+            if (confirm(`确定要删除插件 "${pluginName}" 吗？`)) {
+                try {
+                    const result = await pluginManager.uninstallPlugin(pluginName);
+                    if (result.success) {
+                        alert('插件已成功删除');
+                        loadPlugins();
+                    } else {
+                        alert('删除插件失败: ' + result.error);
+                    }
+                } catch (err) {
+                    alert('删除插件时发生错误: ' + err.message);
+                }
+            }
+        }
+
+        // 处理文件拖放
+        const dragArea = document.getElementById('dragArea');
+        const fileInput = document.getElementById('fileInput');
+
+        dragArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dragArea.classList.add('drag-over');
+        });
+
+        dragArea.addEventListener('dragleave', () => {
+            dragArea.classList.remove('drag-over');
+        });
+
+        dragArea.addEventListener('drop', async (e) => {
+            e.preventDefault();
+            dragArea.classList.remove('drag-over');
+            
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                await handlePluginInstall(files[0]);
+            }
+        });
+
+        dragArea.addEventListener('click', () => {
+            fileInput.click();
+        });
+
+        fileInput.addEventListener('change', async (e) => {
+            if (e.target.files.length > 0) {
+                await handlePluginInstall(e.target.files[0]);
+            }
+        });
+
+        async function handlePluginInstall(file) {
+            if (!file.name.endsWith('.zip')) {
+                alert('请选择 .zip 格式的插件包');
+                return;
+            }
+
+            try {
+                const result = await pluginManager.installPlugin(file.path);
+                if (result.success) {
+                    alert('插件安装成功');
+                    loadPlugins();
+                } else {
+                    alert('安装插件失败: ' + result.error);
+                }
+            } catch (err) {
+                alert('安装插件时发生错误: ' + err.message);
+            }
+        }
+
+        // 初始加载插件列表
+        loadPlugins();
+    </script>
+</body>
+</html>

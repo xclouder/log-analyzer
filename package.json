@@ -16,6 +16,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "adm-zip": "^0.5.10",
     "electron-updater": "^6.1.4",
     "monaco-editor": "^0.40.0"
   },

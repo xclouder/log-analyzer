@@ -39,4 +39,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     onReloadFile: (callback) => ipcRenderer.on('menu:reload-file', callback),
     showItemInFolder: (filePath) => ipcRenderer.send('show-item-in-folder', filePath),
     onMenuShowInFolder: (callback) => ipcRenderer.on('menu:show-in-folder', callback),
+    // 插件管理 API
+    pluginManager: {
+        getPlugins: () => ipcRenderer.invoke('plugin:list'),
+        installPlugin: (zipPath) => ipcRenderer.invoke('plugin:install', zipPath),
+        uninstallPlugin: (pluginName) => ipcRenderer.invoke('plugin:uninstall', pluginName)
+    },
 });
