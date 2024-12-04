@@ -26,6 +26,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
             throw new Error(`读取文件失败: ${error.message}`);
         }
     },
+    saveFilterConfig: (config, filePath) => {
+        return ipcRenderer.invoke('filter:save-config', config, filePath);
+    },
     openFile: () => ipcRenderer.invoke('dialog:openFile'),
     saveFile: (content) => ipcRenderer.invoke('dialog:saveFile', content),
     onMenuOpenFile: (callback) => ipcRenderer.on('menu:open-file', callback),
