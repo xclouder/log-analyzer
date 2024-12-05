@@ -540,38 +540,6 @@ function createMenu() {
             ]
         },
         {
-            label: '插件',
-            submenu: [
-                {
-                    label: '插件管理',
-                    click: () => {
-                        if (pluginManagerWindow) {
-                            pluginManagerWindow.focus();
-                            return;
-                        }
-
-                        pluginManagerWindow = new BrowserWindow({
-                            width: 800,
-                            height: 600,
-                            parent: mainWindow,
-                            modal: true,
-                            webPreferences: {
-                                nodeIntegration: false,
-                                contextIsolation: true,
-                                preload: path.join(__dirname, 'preload.js')
-                            }
-                        });
-
-                        pluginManagerWindow.loadFile('plugin-manager.html');
-
-                        pluginManagerWindow.on('closed', () => {
-                            pluginManagerWindow = null;
-                        });
-                    }
-                }
-            ]
-        },
-        {
             label: '帮助',
             submenu: [
                 {
