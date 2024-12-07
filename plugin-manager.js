@@ -1,4 +1,5 @@
-const fs = require('fs').promises;
+const fs = require('fs');
+const fsPromises = require('fs').promises;
 const path = require('path');
 const PluginAPI = require('./plugin-api');
 const AdmZip = require('adm-zip');
@@ -26,7 +27,7 @@ class PluginManager {
         this.userPluginsDir = path.join(app.getPath('userData'), 'plugins');
         
         // 确保用户插件目录存在
-        await fs.mkdir(this.userPluginsDir, { recursive: true });
+        await fsPromises.mkdir(this.userPluginsDir, { recursive: true });
 
         console.log('Plugin directories initialized:', {
             builtinPluginsDir: this.builtinPluginsDir,
@@ -67,7 +68,7 @@ class PluginManager {
 
         try {
             console.log(`Loading plugins from ${pluginsDir} (isBuiltin: ${isBuiltin})`);
-            const entries = await fs.readdir(pluginsDir, { withFileTypes: true });
+            const entries = await fsPromises.readdir(pluginsDir, { withFileTypes: true });
             
             for (const entry of entries) {
                 if (entry.isDirectory()) {
@@ -86,7 +87,7 @@ class PluginManager {
             console.log(`Loading plugin, dir: ${pluginDir}`);
             // 读取插件的 package.json
             const packageJsonPath = path.join(pluginDir, 'package.json');
-            const packageJson = JSON.parse(await fs.readFile(packageJsonPath, 'utf8'));
+            const packageJson = JSON.parse(await fsPromises.readFile(packageJsonPath, 'utf8'));
             
             // 验证插件格式
             if (!this.validatePluginPackage(packageJson)) {
@@ -145,18 +146,47 @@ class PluginManager {
 
     // 安装插件
     async installPlugin(zipPath) {
+        let tempDir = null;
         try {
+            console.log('Installing plugin from:', zipPath);
+            
+            // 检查zip文件是否存在
+            if (!fs.existsSync(zipPath)) {
+                throw new Error(`Plugin file not found: ${zipPath}`);
+            }
+
             // 读取 zip 文件
             const zip = new AdmZip(zipPath);
             
             // 在临时目录解压并验证
-            const tempDir = path.join(this.userPluginsDir, '_temp');
-            await fs.promises.mkdir(tempDir, { recursive: true });
+            tempDir = path.join(this.userPluginsDir, '_temp');
+            console.log('Extracting to temp directory:', tempDir);
+
+            // 如果临时目录已存在，先删除
+            if (fs.existsSync(tempDir)) {
+                await fsPromises.rm(tempDir, { recursive: true });
+            }
+            
+            await fsPromises.mkdir(tempDir, { recursive: true });
+            
+            // 解压文件
+            console.log('Extracting zip file...');
             zip.extractAllTo(tempDir, true);
             
-            // 查找并验证 package.json
+            // 检查解压后的文件
+            const tempDirContents = await fsPromises.readdir(tempDir);
+            console.log('Extracted contents:', tempDirContents);
+
+            // 查找 package.json
             const packageJsonPath = path.join(tempDir, 'package.json');
-            const packageJson = JSON.parse(await fs.promises.readFile(packageJsonPath, 'utf8'));
+            console.log('Looking for package.json at:', packageJsonPath);
+            
+            if (!fs.existsSync(packageJsonPath)) {
+                throw new Error('package.json not found in plugin package');
+            }
+
+            const packageJson = JSON.parse(await fsPromises.readFile(packageJsonPath, 'utf8'));
+            console.log('Found package.json:', packageJson);
             
             if (!this.validatePluginPackage(packageJson)) {
                 throw new Error('Invalid plugin format');
@@ -169,16 +199,25 @@ class PluginManager {
             }
             
             // 移动到最终位置
-            await fs.promises.rename(tempDir, targetDir);
+            console.log('Moving plugin to:', targetDir);
+            await fsPromises.rename(tempDir, targetDir);
             
             // 加载新插件
+            console.log('Loading new plugin...');
             await this.loadPlugin(targetDir, false);
             
+            console.log('Plugin installation completed successfully');
             return { success: true, plugin: packageJson };
         } catch (err) {
+            console.error('Error during plugin installation:', err);
             // 清理临时目录
-            if (fs.existsSync(tempDir)) {
-                await fs.promises.rm(tempDir, { recursive: true });
+            if (tempDir && fs.existsSync(tempDir)) {
+                try {
+                    await fsPromises.rm(tempDir, { recursive: true });
+                    console.log('Cleaned up temp directory');
+                } catch (cleanupErr) {
+                    console.error('Error cleaning up temp directory:', cleanupErr);
+                }
             }
             throw err;
         }
@@ -201,7 +240,7 @@ class PluginManager {
         }
         
         // 删除插件目录
-        await fs.rm(plugin.metadata.path, { recursive: true });
+        await fsPromises.rm(plugin.metadata.path, { recursive: true });
         
         // 从插件列表中移除
         this.plugins.delete(pluginName);
