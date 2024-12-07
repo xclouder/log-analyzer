@@ -5,6 +5,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
     maximize: () => ipcRenderer.send('window-maximize'),
     close: () => ipcRenderer.send('window-close'),
     isMaximized: () => ipcRenderer.invoke('window-is-maximized'),
+    openFile: async (filePath) => {
+        return await ipcRenderer.invoke('file:open', filePath);
+    },
+    importFilterCfg: async (filterPath) => {
+        return await ipcRenderer.invoke('file:read', filePath);
+    },
     readFile: async (filePath) => {
         try {
             const stats = await ipcRenderer.invoke('file:stats', filePath);
@@ -29,7 +35,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     saveFilterConfig: (config, filePath) => {
         return ipcRenderer.invoke('filter:save-config', config, filePath);
     },
-    openFile: () => ipcRenderer.invoke('dialog:openFile'),
+    dialogOpenFile: () => ipcRenderer.invoke('dialog:openFile'),
     saveFile: (content) => ipcRenderer.invoke('dialog:saveFile', content),
     onMenuOpenFile: (callback) => ipcRenderer.on('menu:open-file', callback),
     onMenuSaveFile: (callback) => ipcRenderer.on('menu:save-file', callback),

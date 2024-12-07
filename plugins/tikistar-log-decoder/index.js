@@ -1,10 +1,10 @@
 const path = require('path');
 const { spawn } = require('child_process');
+const Plugin = require('../../plugin-base');
 
-class TikistarLogDecoderPlugin {
+class TikistarLogDecoderPlugin extends Plugin{
     constructor(api) {
-        this.id = 'tikistar-log-decoder';
-        this.api = api;
+        super(api);
     }
 
     async onPreOpenFile(filePath) {

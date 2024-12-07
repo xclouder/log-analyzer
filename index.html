@@ -381,15 +381,9 @@
 
                 const file = files[0];
                 try {
-                    const content = await window.electronAPI.readFile(file.path);
+                    const { filePath, content} = await window.electronAPI.openFile(file.path);
                     if (content !== null) {
-                        editor.setValue(content);
-                        // 更新当前文件路径
-                        currentFilePath = file.path;
-                        // 更新窗口标题
-                        document.title = `LogAnalyzer - ${file.path}`;
-                        // 更新文件信息
-                        updateFileInfo(file.path);
+                        onDidOpenFile(filePath, content);
                     }
                 } catch (err) {
                     console.error('Error reading file:', err);
@@ -522,7 +516,7 @@
 
         // 监听菜单事件
         window.electronAPI.onMenuOpenFile(() => {
-            openFile();
+            showOpenFileDialog();
         });
 
         // 监听重新加载文件事件
@@ -1031,17 +1025,33 @@
             return Array.from(lineNumbers).sort((a, b) => a - b);
         }
 
-        async function openFile() {
-            const result = await window.electronAPI.openFile();
+        function onDidOpenFile(filePath, content) {
+            editor.setValue(content);
+            
+            // 更新文件信息
+            updateFileInfo(file.path);
+
+            // clearFilters();
+        }
+
+        async function showOpenFileDialog() {
+            console.log(`showOpenFileDialog`);
+            const result = await window.electronAPI.dialogOpenFile();
+
             if (result) {
                 const { content, filePath } = result;
-                currentFilePath = filePath;
-                editor.setValue(content);
-                clearFilters();
+
+                onDidOpenFile(filePath, content);
+            }
+            else {
+                console.error(`showOpenFileDialog error: ${result}`);
             }
         }
 
         function updateFileInfo(filePath) {
+            currentFilePath = filePath;
+            // 更新窗口标题
+            document.title = `LogAnalyzer - ${filePath}`;
         }
 
         function toggleFilterPanel() {

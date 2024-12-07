@@ -95,28 +95,8 @@ ipcMain.handle('dialog:openFile', async () => {
 
     if (!result.canceled && result.filePaths.length > 0) {
         const filePath = result.filePaths[0];
-        try {
-            // 通过插件预处理文件路径
-            const processedPath = await pluginManager.preProcessFilePath(filePath);
-            
-            // 读取文件内容
-            const content = await fs.readFile(processedPath, 'utf8');
-            
-            // 处理文件内容
-            const processedContent = await pluginManager.processFileContent(processedPath, content);
-            
-            currentLogContent = processedContent;
-            currentFilePath = processedPath;
-            updateWindowTitle(processedPath);
-            log('File opened:', processedPath);
-            return {
-                content: processedContent,
-                filePath: processedPath
-            };
-        } catch (err) {
-            logError('Error reading file:', err);
-            return null;
-        }
+
+        return await doOpenFile(filePath);
     }
     return null;
 });
@@ -126,23 +106,28 @@ ipcMain.handle('dialog:saveFile', async (event, { filePath, content }) => {
     return false;
 });
 
+ipcMain.handle('file:open', async (event, filePath) => {
+    try {
+        // 读取文件内容
+        return await doOpenFile(filePath);
+
+    } catch (error) {
+        logError('Error reading file:', error);
+        throw error;
+    }
+});
+
 // 添加文件读取处理器
 ipcMain.handle('file:read', async (event, filePath) => {
     try {
-        // 通过插件预处理文件路径
-        const processedPath = await pluginManager.preProcessFilePath(filePath);
-        
         // 读取文件内容
-        const content = await fs.readFile(processedPath, 'utf8');
+        const content = await fs.readFile(filePath, 'utf8');
         
-        // 处理文件内容
-        const processedContent = await pluginManager.processFileContent(processedPath, content);
-        
-        currentLogContent = processedContent;
-        currentFilePath = processedPath;
-        updateWindowTitle(processedPath);
-        log('File read:', processedPath);
-        return processedContent;
+        currentLogContent = content;
+        currentFilePath = filePath;
+        updateWindowTitle(filePath);
+        log('File read:', filePath);
+        return currentLogContent;
     } catch (error) {
         logError('Error reading file:', error);
         throw error;
@@ -151,37 +136,9 @@ ipcMain.handle('file:read', async (event, filePath) => {
 
 ipcMain.handle('file:stats', async (event, filePath) => {
     try {
-        // 通过插件预处理文件路径
-        const processedPath = await pluginManager.preProcessFilePath(filePath);
-        
-        return await fs.stat(processedPath);
+        return await fs.stat(filePath);
     } catch (error) {
         throw new Error(`获取文件信息失败: ${error.message}`);
-    }
-});
-
-ipcMain.handle('file:read-chunk', async (event, filePath, offset, length) => {
-    try {
-        // 通过插件预处理文件路径
-        const processedPath = await pluginManager.preProcessFilePath(filePath);
-        
-        const fileHandle = await fs.open(processedPath, 'r');
-        const buffer = Buffer.alloc(length);
-        const { bytesRead } = await fileHandle.read(buffer, 0, length, offset);
-        await fileHandle.close();
-        const content = buffer.toString('utf8', 0, bytesRead);
-        
-        // 如果是最后一个块，更新当前文件信息
-        const stats = await fs.stat(processedPath);
-        if (offset + bytesRead >= stats.size) {
-            currentFilePath = processedPath;
-            updateWindowTitle(processedPath);
-            log('File read (chunked):', processedPath);
-        }
-        
-        return content;
-    } catch (error) {
-        throw new Error(`读取文件块失败: ${error.message}`);
     }
 });
 
@@ -398,29 +355,6 @@ ipcMain.handle('filter:apply', async (event, config) => {
             success: false,
             error: err.message
         };
-    }
-});
-
-// 加载过滤器配置
-ipcMain.handle('loadFilterConfig', async () => {
-    try {
-        const { filePaths } = await dialog.showOpenDialog({
-            properties: ['openFile'],
-            filters: [
-                { name: 'Filter Config', extensions: ['json'] }
-            ]
-        });
-
-        if (filePaths && filePaths.length > 0) {
-            const configPath = filePaths[0];
-            const configData = await fs.readFile(configPath, 'utf8');
-            const config = JSON.parse(configData);
-            log('Filter config loaded:', config);
-            return config;
-        }
-    } catch (err) {
-        logError('Error loading filter config:', err);
-        throw new Error('加载过滤器配置失败: ' + err.message);
     }
 });
 
@@ -674,5 +608,30 @@ function updateWindowTitle(filePath) {
     if (mainWindow) {
         const title = filePath ? `LogAnalyzer - ${filePath}` : 'LogAnalyzer';
         mainWindow.setTitle(title);
+    }
+}
+
+async function doOpenFile(filePath) {
+    try {
+        // 通过插件预处理文件路径
+        const processedPath = await pluginManager.preProcessFilePath(filePath);
+        
+        // 读取文件内容
+        const content = await fs.readFile(processedPath, 'utf8');
+        
+        // 处理文件内容
+        const processedContent = await pluginManager.processFileContent(processedPath, content);
+        
+        currentLogContent = processedContent;
+        currentFilePath = processedPath;
+        updateWindowTitle(processedPath);
+        log('File opened:', processedPath);
+        return {
+            content: processedContent,
+            filePath: processedPath
+        };
+    } catch (err) {
+        logError('Error reading file:', err);
+        return null;
     }
 }
