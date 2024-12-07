@@ -70,7 +70,7 @@ app.whenReady().then(async () => {
 
         // 加载插件
         await pluginManager.loadPlugins();
-        console.log('Plugins loaded successfully');
+        console.log('Plugins loaded finished');
 
         app.on('activate', function () {
             if (BrowserWindow.getAllWindows().length === 0) createWindow();

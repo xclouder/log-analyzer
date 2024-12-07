@@ -83,7 +83,7 @@ class PluginManager {
     // 加载单个插件
     async loadPlugin(pluginDir, isBuiltin) {
         try {
-            console.log(`Loading plugin from ${pluginDir}`);
+            console.log(`Loading plugin, dir: ${pluginDir}`);
             // 读取插件的 package.json
             const packageJsonPath = path.join(pluginDir, 'package.json');
             const packageJson = JSON.parse(await fs.readFile(packageJsonPath, 'utf8'));
@@ -259,11 +259,6 @@ class PluginManager {
             this.plugins.delete(pluginId);
             this.fileProcessors = this.fileProcessors.filter(p => p.id !== pluginId);
         }
-    }
-
-    // 获取所有已加载的插件
-    getPlugins() {
-        return Array.from(this.plugins.values());
     }
 }
 
