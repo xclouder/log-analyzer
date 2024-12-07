@@ -562,7 +562,12 @@ function createMenu() {
                             }
                         });
 
+                        // 去掉菜单
+                        pluginManagerWindow.setMenu(null);
+
                         pluginManagerWindow.loadFile('plugin-manager.html');
+                        // 打开开发者工具
+                        // pluginManagerWindow.webContents.openDevTools();
 
                         pluginManagerWindow.on('closed', () => {
                             pluginManagerWindow = null;

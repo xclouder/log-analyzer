@@ -98,11 +98,11 @@
     </div>
 
     <script>
-        const { pluginManager } = window.api;
-        
+        const { pluginManager } = window.electronAPI;
+
         // 加载插件列表
         async function loadPlugins() {
-            console.log('[AAA]Loading plugins...');
+            console.log('Loading plugins...');
             const plugins = await pluginManager.getPlugins();
             const pluginList = document.getElementById('pluginList');
             pluginList.innerHTML = '';
