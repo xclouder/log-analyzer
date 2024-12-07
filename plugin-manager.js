@@ -20,7 +20,7 @@ class PluginManager {
         // 设置内置插件目录
         this.builtinPluginsDir = app.isPackaged
             ? path.join(process.resourcesPath, 'plugins')
-            : path.join(__dirname, '..', '..', 'plugins');
+            : path.join(__dirname, 'plugins');
 
         // 设置用户插件目录
         this.userPluginsDir = path.join(app.getPath('userData'), 'plugins');

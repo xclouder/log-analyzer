@@ -2,7 +2,7 @@ const { app, BrowserWindow, ipcMain, dialog, Menu, shell } = require('electron')
 const { autoUpdater } = require('electron-updater');
 const path = require('path');
 const fs = require('fs').promises;
-const PluginManager = require('./src/plugins/plugin-manager');
+const PluginManager = require('./plugin-manager');
 
 // 自动更新配置
 autoUpdater.autoDownload = false;
@@ -537,6 +537,38 @@ function createMenu() {
                 },
                 { type: 'separator' },
                 { role: 'quit' }
+            ]
+        },
+        {
+            label: '插件',
+            submenu: [
+                {
+                    label: '插件管理',
+                    click: () => {
+                        if (pluginManagerWindow) {
+                            pluginManagerWindow.focus();
+                            return;
+                        }
+
+                        pluginManagerWindow = new BrowserWindow({
+                            width: 800,
+                            height: 600,
+                            parent: mainWindow,
+                            modal: true,
+                            webPreferences: {
+                                nodeIntegration: false,
+                                contextIsolation: true,
+                                preload: path.join(__dirname, 'preload.js')
+                            }
+                        });
+
+                        pluginManagerWindow.loadFile('plugin-manager.html');
+
+                        pluginManagerWindow.on('closed', () => {
+                            pluginManagerWindow = null;
+                        });
+                    }
+                }
             ]
         },
         {
