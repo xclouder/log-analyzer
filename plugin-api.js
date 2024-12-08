@@ -2,6 +2,21 @@ const { BrowserWindow } = require('electron');
 const path = require('path');
 const fs = require('fs').promises;
 
+class Context {
+    constructor() {
+        this.logFilePath = '';
+        this.logContent = '';
+    }
+}
+
+class Command {
+    constructor() {
+        this.name = '';
+        this.description = '';
+        this.action = undefined;
+    }
+}
+
 class PluginAPI {
     constructor(mainWindow) {
         this.mainWindow = mainWindow;
@@ -44,6 +59,14 @@ class PluginAPI {
     // 获取插件窗口
     getWindow(pluginId) {
         return this.pluginWindows.get(pluginId);
+    }
+
+    registerCommand(pluginIns, cmd) {
+
+    }
+
+    unregisterCommand(pluginIns) {
+
     }
 }
 

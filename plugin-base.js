@@ -1,6 +1,15 @@
+
 class Plugin {
     constructor(api) {
         this.api = api;
+    }
+
+    onActivate() {
+        
+    }
+
+    onDeactivate() {
+        
     }
     
     // 打开文件时预处理，可以在这里对文件预处理，返回新的文件路径
@@ -15,9 +24,6 @@ class Plugin {
     async onWillCloseFile(context) {
 
     }
-
-
-
 }
 
 module.exports = Plugin;
