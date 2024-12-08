@@ -228,6 +228,13 @@ ipcMain.handle('file:show-in-folder', async () => {
     }
 });
 
+// 处理打开用户插件目录的请求
+ipcMain.on('open-user-plugins-dir', async () => {
+    const pluginManager = new PluginManager(mainWindow);
+    await pluginManager.initializePluginDirs();
+    shell.openPath(pluginManager.userPluginsDir);
+});
+
 // 添加插件相关的IPC处理器
 ipcMain.on('plugin:message', (event, data) => {
     const win = BrowserWindow.fromWebContents(event.sender);
@@ -498,9 +505,10 @@ function createMenu() {
                             parent: mainWindow,
                             modal: true,
                             webPreferences: {
-                                nodeIntegration: false,
+                                preload: path.join(__dirname, 'preload.js'),
                                 contextIsolation: true,
-                                preload: path.join(__dirname, 'preload.js')
+                                enableRemoteModule: false,
+                                nodeIntegration: false
                             }
                         });
 
@@ -509,7 +517,7 @@ function createMenu() {
 
                         pluginManagerWindow.loadFile('plugin-manager.html');
                         // 打开开发者工具
-                        // pluginManagerWindow.webContents.openDevTools();
+                        //pluginManagerWindow.webContents.openDevTools();
 
                         pluginManagerWindow.on('closed', () => {
                             pluginManagerWindow = null;

@@ -14,6 +14,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     saveFilterConfig: (config, filePath) => {
         return ipcRenderer.invoke('filter:save-config', config, filePath);
     },
+    openUserPluginsDir: () => ipcRenderer.send('open-user-plugins-dir'),
     dialogOpenFile: () => ipcRenderer.invoke('dialog:openFile'),
     saveFile: (content) => ipcRenderer.invoke('dialog:saveFile', content),
     onMenuOpenFile: (callback) => ipcRenderer.on('menu:open-file', callback),

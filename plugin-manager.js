@@ -44,40 +44,48 @@ class PluginManager {
                 userPluginsDir: this.userPluginsDir
             });
             
+            const pluginBasePath = path.resolve(__dirname, 'plugin-base.js');
+            
             // 加载内置插件
             if (this.builtinPluginsDir) {
-                await this.loadPluginsFromDir(this.builtinPluginsDir, true);
+                await this.loadPluginsFromDir(this.builtinPluginsDir, true, pluginBasePath);
             }
             
             // 加载用户插件
             if (this.userPluginsDir) {
-                await this.loadPluginsFromDir(this.userPluginsDir, false);
+                await this.loadPluginsFromDir(this.userPluginsDir, false, pluginBasePath);
             }
         } catch (error) {
-            console.error('Error loading plugins:', error);
-            throw error;
+            console.error('Failed to load plugins:', error);
         }
     }
 
-    // 从指定目录加载插件
-    async loadPluginsFromDir(pluginsDir, isBuiltin) {
-        if (!pluginsDir) {
-            console.error('Invalid plugins directory:', pluginsDir);
-            return;
-        }
-
-        try {
-            console.log(`Loading plugins from ${pluginsDir} (isBuiltin: ${isBuiltin})`);
-            const entries = await fsPromises.readdir(pluginsDir, { withFileTypes: true });
-            
-            for (const entry of entries) {
-                if (entry.isDirectory()) {
-                    const pluginDir = path.join(pluginsDir, entry.name);
-                    await this.loadPlugin(pluginDir, isBuiltin);
-                }
+    async loadPluginsFromDir(directory, isBuiltin, pluginBasePath) {
+        const pluginFiles = await fsPromises.readdir(directory);
+        for (const file of pluginFiles) {
+            const pluginDir = path.join(directory, file);
+            const packageJsonPath = path.join(pluginDir, 'package.json');
+            if (!fs.existsSync(packageJsonPath)) {
+                throw new Error('package.json not found in plugin directory');
             }
-        } catch (err) {
-            console.error(`Error loading plugins from ${pluginsDir}:`, err);
+
+            const packageJson = JSON.parse(await fsPromises.readFile(packageJsonPath, 'utf-8'));
+
+            if (!this.validatePluginPackage(packageJson)) {
+                throw new Error('Invalid plugin package.json format');
+            }
+
+            const PluginClass = require(path.join(pluginDir, packageJson.main))(pluginBasePath);
+            const plugin = new PluginClass(this.api);
+
+            this.plugins.set(packageJson.name, {
+                instance: plugin,
+                metadata: {
+                    ...packageJson,
+                    isBuiltin,
+                    path: pluginDir
+                }
+            });
         }
     }
 
@@ -87,13 +95,16 @@ class PluginManager {
             console.log(`Loading plugin, dir: ${pluginDir}`);
             // 读取插件的 package.json
             const packageJsonPath = path.join(pluginDir, 'package.json');
-            const packageJson = JSON.parse(await fsPromises.readFile(packageJsonPath, 'utf8'));
-            
-            // 验证插件格式
-            if (!this.validatePluginPackage(packageJson)) {
-                throw new Error('Invalid plugin package.json');
+            if (!fs.existsSync(packageJsonPath)) {
+                throw new Error('package.json not found in plugin directory');
             }
-            
+
+            const packageJson = JSON.parse(await fsPromises.readFile(packageJsonPath, 'utf-8'));
+
+            if (!this.validatePluginPackage(packageJson)) {
+                throw new Error('Invalid plugin package.json format');
+            }
+
             // 加载插件主文件
             const mainFile = path.join(pluginDir, packageJson.main);
             const PluginClass = require(mainFile);

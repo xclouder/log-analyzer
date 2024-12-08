@@ -1,47 +1,49 @@
 const path = require('path');
 const { spawn } = require('child_process');
-const Plugin = require('../../plugin-base');
 
-class TikistarLogDecoderPlugin extends Plugin{
-    constructor(api) {
-        super(api);
-    }
+module.exports = function(pluginBasePath) {
+    const Plugin = require(pluginBasePath);
 
-    async onPreOpenFile(filePath) {
-        console.log('[TikistarLogDecoder] Processing file:', filePath);
-        
-        // 检查文件是否是加密的日志文件
-        if (this.isEncryptedLogFile(filePath)) {
-            console.log('[TikistarLogDecoder] File is encrypted log file');
-            // 获取解密后的文件路径
-            const decodedPath = this.getDecodedFilePath(filePath);
-            console.log('[TikistarLogDecoder] Decoded path will be:', decodedPath);
-            
-            // 删除已存在的解密文件
-            try {
-                await this.api.fs.unlink(decodedPath);
-                console.log('[TikistarLogDecoder] Removed existing decoded file');
-            } catch (e) {
-                // 如果文件不存在，忽略错误
-                console.log('[TikistarLogDecoder] No existing file to remove');
-            }
-            
-            // 使用 LogDecoder.exe 解密文件
-            try {
-                console.log('[TikistarLogDecoder] Starting decoding process');
-                await this.decodeFile(filePath, decodedPath);
-                console.log('[TikistarLogDecoder] File decoded successfully');
-                return decodedPath;
-            } catch (error) {
-                console.error('[TikistarLogDecoder] Failed to decode log file:', error);
-                return filePath; // 如果解密失败，返回原始文件路径
-            }
-        } else {
-            console.log('[TikistarLogDecoder] Not an encrypted log file');
+    class TikistarLogDecoderPlugin extends Plugin{
+        constructor(api) {
+            super(api);
         }
-        
-        return filePath;
-    }
+
+        async onPreOpenFile(filePath) {
+            console.log('[TikistarLogDecoder] Processing file:', filePath);
+            
+            // 检查文件是否是加密的日志文件
+            if (this.isEncryptedLogFile(filePath)) {
+                console.log('[TikistarLogDecoder] File is encrypted log file');
+                // 获取解密后的文件路径
+                const decodedPath = this.getDecodedFilePath(filePath);
+                console.log('[TikistarLogDecoder] Decoded path will be:', decodedPath);
+                
+                // 删除已存在的解密文件
+                try {
+                    await this.api.fs.unlink(decodedPath);
+                    console.log('[TikistarLogDecoder] Removed existing decoded file');
+                } catch (e) {
+                    // 如果文件不存在，忽略错误
+                    console.log('[TikistarLogDecoder] No existing file to remove');
+                }
+                
+                // 使用 LogDecoder.exe 解密文件
+                try {
+                    console.log(`[TikistarLogDecoder] Starting decoding process, cmd:LogDecoder.exe ${filePath} ${decodedPath}`);
+                    await this.decodeFile(filePath, decodedPath);
+                    console.log('[TikistarLogDecoder] File decoded successfully');
+                    return decodedPath;
+                } catch (error) {
+                    console.error('[TikistarLogDecoder] Failed to decode log file:', error);
+                    return filePath; // 如果解密失败，返回原始文件路径
+                }
+            } else {
+                console.log('[TikistarLogDecoder] Not an encrypted log file');
+            }
+            
+            return filePath;
+        }
 
     isEncryptedLogFile(filePath) {
         const isEncrypted = filePath.toLowerCase().includes('tkencoded_');
@@ -87,4 +89,5 @@ class TikistarLogDecoderPlugin extends Plugin{
     }
 }
 
-module.exports = TikistarLogDecoderPlugin;
+    return TikistarLogDecoderPlugin;
+};
