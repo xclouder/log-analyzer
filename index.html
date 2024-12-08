@@ -380,6 +380,7 @@
                 if (files.length === 0) return;
 
                 const file = files[0];
+                console.log('Dropped file:', file);
                 try {
                     const { filePath, content} = await window.electronAPI.openFile(file.path);
                     if (content !== null) {
@@ -1029,7 +1030,7 @@
             editor.setValue(content);
             
             // 更新文件信息
-            updateFileInfo(file.path);
+            updateFileInfo(filePath);
 
             // clearFilters();
         }

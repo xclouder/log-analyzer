@@ -11,27 +11,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
     importFilterCfg: async (filterPath) => {
         return await ipcRenderer.invoke('file:read', filePath);
     },
-    readFile: async (filePath) => {
-        try {
-            const stats = await ipcRenderer.invoke('file:stats', filePath);
-            if (stats.size > 10 * 1024 * 1024) { // 如果文件大于10MB
-                let content = '';
-                let offset = 0;
-                const chunkSize = 5 * 1024 * 1024; // 每次读取5MB
-                
-                while (offset < stats.size) {
-                    const chunk = await ipcRenderer.invoke('file:read-chunk', filePath, offset, chunkSize);
-                    content += chunk;
-                    offset += chunkSize;
-                }
-                return content;
-            } else {
-                return await ipcRenderer.invoke('file:read', filePath);
-            }
-        } catch (error) {
-            throw new Error(`读取文件失败: ${error.message}`);
-        }
-    },
     saveFilterConfig: (config, filePath) => {
         return ipcRenderer.invoke('filter:save-config', config, filePath);
     },
