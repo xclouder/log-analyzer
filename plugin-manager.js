@@ -105,9 +105,12 @@ class PluginManager {
                 throw new Error('Invalid plugin package.json format');
             }
 
+
+            const pluginBasePath = path.resolve(__dirname, 'plugin-base.js');
+            
             // 加载插件主文件
             const mainFile = path.join(pluginDir, packageJson.main);
-            const PluginClass = require(mainFile);
+            const PluginClass = require(mainFile)(pluginBasePath);
             
             // 创建插件实例
             const plugin = new PluginClass(this.api);
