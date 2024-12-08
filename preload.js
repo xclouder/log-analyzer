@@ -5,36 +5,22 @@ contextBridge.exposeInMainWorld('electronAPI', {
     maximize: () => ipcRenderer.send('window-maximize'),
     close: () => ipcRenderer.send('window-close'),
     isMaximized: () => ipcRenderer.invoke('window-is-maximized'),
-    readFile: async (filePath) => {
-        try {
-            const stats = await ipcRenderer.invoke('file:stats', filePath);
-            if (stats.size > 10 * 1024 * 1024) { // 如果文件大于10MB
-                let content = '';
-                let offset = 0;
-                const chunkSize = 5 * 1024 * 1024; // 每次读取5MB
-                
-                while (offset < stats.size) {
-                    const chunk = await ipcRenderer.invoke('file:read-chunk', filePath, offset, chunkSize);
-                    content += chunk;
-                    offset += chunkSize;
-                }
-                return content;
-            } else {
-                return await ipcRenderer.invoke('file:read', filePath);
-            }
-        } catch (error) {
-            throw new Error(`读取文件失败: ${error.message}`);
-        }
+    openFile: async (filePath) => {
+        return await ipcRenderer.invoke('file:open', filePath);
+    },
+    importFilterCfg: async (filePath) => {
+        return await ipcRenderer.invoke('filter:import', filePath);
     },
     saveFilterConfig: (config, filePath) => {
         return ipcRenderer.invoke('filter:save-config', config, filePath);
     },
-    openFile: () => ipcRenderer.invoke('dialog:openFile'),
+    openUserPluginsDir: () => ipcRenderer.send('open-user-plugins-dir'),
+    dialogOpenFile: () => ipcRenderer.invoke('dialog:openFile'),
     saveFile: (content) => ipcRenderer.invoke('dialog:saveFile', content),
     onMenuOpenFile: (callback) => ipcRenderer.on('menu:open-file', callback),
     onMenuSaveFile: (callback) => ipcRenderer.on('menu:save-file', callback),
     onFilterSaveConfig: (callback) => ipcRenderer.on('filter:save-config-dialog', callback),
-    onFilterLoadConfig: (callback) => ipcRenderer.on('filter:load-config-result', callback),
+    onFilterLoadConfig: (callback) => ipcRenderer.on('filter:load', callback),
     reloadCurrentFile: () => ipcRenderer.invoke('file:reload'),
     onReloadFile: (callback) => ipcRenderer.on('menu:reload-file', callback),
     showItemInFolder: (filePath) => ipcRenderer.send('show-item-in-folder', filePath),

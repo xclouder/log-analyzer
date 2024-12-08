@@ -2,7 +2,7 @@ const { app, BrowserWindow, ipcMain, dialog, Menu, shell } = require('electron')
 const { autoUpdater } = require('electron-updater');
 const path = require('path');
 const fs = require('fs').promises;
-const PluginManager = require('./src/plugins/plugin-manager');
+const PluginManager = require('./plugin-manager');
 
 // 自动更新配置
 autoUpdater.autoDownload = false;
@@ -70,7 +70,7 @@ app.whenReady().then(async () => {
 
         // 加载插件
         await pluginManager.loadPlugins();
-        console.log('Plugins loaded successfully');
+        console.log('Plugins loaded finished');
 
         app.on('activate', function () {
             if (BrowserWindow.getAllWindows().length === 0) createWindow();
@@ -95,28 +95,8 @@ ipcMain.handle('dialog:openFile', async () => {
 
     if (!result.canceled && result.filePaths.length > 0) {
         const filePath = result.filePaths[0];
-        try {
-            // 通过插件预处理文件路径
-            const processedPath = await pluginManager.preProcessFilePath(filePath);
-            
-            // 读取文件内容
-            const content = await fs.readFile(processedPath, 'utf8');
-            
-            // 处理文件内容
-            const processedContent = await pluginManager.processFileContent(processedPath, content);
-            
-            currentLogContent = processedContent;
-            currentFilePath = processedPath;
-            updateWindowTitle(processedPath);
-            log('File opened:', processedPath);
-            return {
-                content: processedContent,
-                filePath: processedPath
-            };
-        } catch (err) {
-            logError('Error reading file:', err);
-            return null;
-        }
+
+        return await doOpenFile(filePath);
     }
     return null;
 });
@@ -126,23 +106,39 @@ ipcMain.handle('dialog:saveFile', async (event, { filePath, content }) => {
     return false;
 });
 
+ipcMain.handle('file:open', async (event, filePath) => {
+    try {
+        // 读取文件内容
+        return await doOpenFile(filePath);
+
+    } catch (error) {
+        logError('Error reading file:', error);
+        throw error;
+    }
+});
+
+ipcMain.handle('filter:import', async (event, filePath) => {
+    try {
+        // 读取文件内容
+        return await doImportFilterConfig(filePath);
+
+    } catch (error) {
+        logError('Error reading file:', error);
+        throw error;
+    }
+});
+
 // 添加文件读取处理器
 ipcMain.handle('file:read', async (event, filePath) => {
     try {
-        // 通过插件预处理文件路径
-        const processedPath = await pluginManager.preProcessFilePath(filePath);
-        
         // 读取文件内容
-        const content = await fs.readFile(processedPath, 'utf8');
+        const content = await fs.readFile(filePath, 'utf8');
         
-        // 处理文件内容
-        const processedContent = await pluginManager.processFileContent(processedPath, content);
-        
-        currentLogContent = processedContent;
-        currentFilePath = processedPath;
-        updateWindowTitle(processedPath);
-        log('File read:', processedPath);
-        return processedContent;
+        currentLogContent = content;
+        currentFilePath = filePath;
+        updateWindowTitle(filePath);
+        log('File read:', filePath);
+        return currentLogContent;
     } catch (error) {
         logError('Error reading file:', error);
         throw error;
@@ -151,37 +147,9 @@ ipcMain.handle('file:read', async (event, filePath) => {
 
 ipcMain.handle('file:stats', async (event, filePath) => {
     try {
-        // 通过插件预处理文件路径
-        const processedPath = await pluginManager.preProcessFilePath(filePath);
-        
-        return await fs.stat(processedPath);
+        return await fs.stat(filePath);
     } catch (error) {
         throw new Error(`获取文件信息失败: ${error.message}`);
-    }
-});
-
-ipcMain.handle('file:read-chunk', async (event, filePath, offset, length) => {
-    try {
-        // 通过插件预处理文件路径
-        const processedPath = await pluginManager.preProcessFilePath(filePath);
-        
-        const fileHandle = await fs.open(processedPath, 'r');
-        const buffer = Buffer.alloc(length);
-        const { bytesRead } = await fileHandle.read(buffer, 0, length, offset);
-        await fileHandle.close();
-        const content = buffer.toString('utf8', 0, bytesRead);
-        
-        // 如果是最后一个块，更新当前文件信息
-        const stats = await fs.stat(processedPath);
-        if (offset + bytesRead >= stats.size) {
-            currentFilePath = processedPath;
-            updateWindowTitle(processedPath);
-            log('File read (chunked):', processedPath);
-        }
-        
-        return content;
-    } catch (error) {
-        throw new Error(`读取文件块失败: ${error.message}`);
     }
 });
 
@@ -258,6 +226,13 @@ ipcMain.handle('file:show-in-folder', async () => {
     } catch (err) {
         logError('Error showing file in folder:', err);
     }
+});
+
+// 处理打开用户插件目录的请求
+ipcMain.on('open-user-plugins-dir', async () => {
+    const pluginManager = new PluginManager(mainWindow);
+    await pluginManager.initializePluginDirs();
+    shell.openPath(pluginManager.userPluginsDir);
 });
 
 // 添加插件相关的IPC处理器
@@ -401,29 +376,6 @@ ipcMain.handle('filter:apply', async (event, config) => {
     }
 });
 
-// 加载过滤器配置
-ipcMain.handle('loadFilterConfig', async () => {
-    try {
-        const { filePaths } = await dialog.showOpenDialog({
-            properties: ['openFile'],
-            filters: [
-                { name: 'Filter Config', extensions: ['json'] }
-            ]
-        });
-
-        if (filePaths && filePaths.length > 0) {
-            const configPath = filePaths[0];
-            const configData = await fs.readFile(configPath, 'utf8');
-            const config = JSON.parse(configData);
-            log('Filter config loaded:', config);
-            return config;
-        }
-    } catch (err) {
-        logError('Error loading filter config:', err);
-        throw new Error('加载过滤器配置失败: ' + err.message);
-    }
-});
-
 // 保存过滤器配置
 ipcMain.handle('filter:save-config', async (event, config, filePath) => {
     try {
@@ -524,10 +476,7 @@ function createMenu() {
                             const configPath = result.filePaths[0];
                             try {
                                 log('Reading config file:', configPath);
-                                const configData = await fs.readFile(configPath, 'utf-8');
-                                const config = JSON.parse(configData);
-                                log('Sending config to renderer:', config);
-                                mainWindow.webContents.send('filter:load-config-result', config);
+                                mainWindow.webContents.send('filter:load', configPath);
                             } catch (err) {
                                 logError('Error loading filter config:', err);
                                 dialog.showErrorBox('错误', '加载配置文件失败: ' + err.message);
@@ -537,6 +486,44 @@ function createMenu() {
                 },
                 { type: 'separator' },
                 { role: 'quit' }
+            ]
+        },
+        {
+            label: '插件',
+            submenu: [
+                {
+                    label: '插件管理',
+                    click: () => {
+                        if (pluginManagerWindow) {
+                            pluginManagerWindow.focus();
+                            return;
+                        }
+
+                        pluginManagerWindow = new BrowserWindow({
+                            width: 800,
+                            height: 600,
+                            parent: mainWindow,
+                            modal: true,
+                            webPreferences: {
+                                preload: path.join(__dirname, 'preload.js'),
+                                contextIsolation: true,
+                                enableRemoteModule: false,
+                                nodeIntegration: false
+                            }
+                        });
+
+                        // 去掉菜单
+                        pluginManagerWindow.setMenu(null);
+
+                        pluginManagerWindow.loadFile('plugin-manager.html');
+                        // 打开开发者工具
+                        //pluginManagerWindow.webContents.openDevTools();
+
+                        pluginManagerWindow.on('closed', () => {
+                            pluginManagerWindow = null;
+                        });
+                    }
+                }
             ]
         },
         {
@@ -637,5 +624,41 @@ function updateWindowTitle(filePath) {
     if (mainWindow) {
         const title = filePath ? `LogAnalyzer - ${filePath}` : 'LogAnalyzer';
         mainWindow.setTitle(title);
+    }
+}
+
+async function doImportFilterConfig(filePath) {
+    const configData = await fs.readFile(filePath, 'utf-8');
+    const config = JSON.parse(configData);
+    console.log('Loading filter config:', config);
+    if (!config || !config.patterns) {
+        throw new Error('无效的配置格式');
+    }
+
+    return config;
+}
+
+async function doOpenFile(filePath) {
+    try {
+        // 通过插件预处理文件路径
+        const processedPath = await pluginManager.preProcessFilePath(filePath);
+        
+        // 读取文件内容
+        const content = await fs.readFile(processedPath, 'utf8');
+        
+        // 处理文件内容
+        const processedContent = await pluginManager.processFileContent(processedPath, content);
+        
+        currentLogContent = processedContent;
+        currentFilePath = processedPath;
+        updateWindowTitle(processedPath);
+        log('File opened:', processedPath);
+        return {
+            content: processedContent,
+            filePath: processedPath
+        };
+    } catch (err) {
+        logError('Error reading file:', err);
+        return null;
     }
 }

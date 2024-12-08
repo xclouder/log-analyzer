@@ -63,6 +63,15 @@
             background: #007bff;
             color: white;
         }
+        .btn-open-dir {
+            background-color: #007bff;
+            color: white;
+            margin-right: 10px;
+        }
+
+        .btn-open-dir:hover {
+            background-color: #0056b3;
+        }
         .install-section {
             margin-bottom: 20px;
             padding: 15px;
@@ -90,6 +99,7 @@
             拖放插件包(.zip)到此处，或点击选择文件
             <input type="file" id="fileInput" style="display: none" accept=".zip">
         </div>
+        <button class="btn btn-open-dir" onclick="openUserPluginsDir()">打开插件目录</button>
     </div>
 
     <h2>已安装插件</h2>
@@ -98,10 +108,11 @@
     </div>
 
     <script>
-        const { pluginManager } = window.api;
-        
+        const { pluginManager } = window.electronAPI;
+
         // 加载插件列表
         async function loadPlugins() {
+            console.log('Loading plugins...');
             const plugins = await pluginManager.getPlugins();
             const pluginList = document.getElementById('pluginList');
             pluginList.innerHTML = '';
@@ -195,6 +206,10 @@
             } catch (err) {
                 alert('安装插件时发生错误: ' + err.message);
             }
+        }
+
+        function openUserPluginsDir() {
+            window.electronAPI.openUserPluginsDir();
         }
 
         // 初始加载插件列表

@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html>
+
 <head>
     <title>LogAnalyzer</title>
     <style>
@@ -12,6 +13,7 @@
             flex-direction: column;
             height: 100vh;
         }
+
         #toolbar {
             background-color: #333;
             padding: 10px;
@@ -19,11 +21,13 @@
             flex-direction: column;
             gap: 10px;
         }
+
         .toolbar-row {
             display: flex;
             align-items: center;
             gap: 10px;
         }
+
         button {
             background-color: #444;
             border: none;
@@ -32,9 +36,11 @@
             cursor: pointer;
             border-radius: 3px;
         }
+
         button:hover {
             background-color: #555;
         }
+
         input[type="text"] {
             background-color: #444;
             border: none;
@@ -43,33 +49,41 @@
             border-radius: 3px;
             width: 200px;
         }
+
         .editors-container {
             display: flex;
             flex: 1;
             min-height: 0;
             position: relative;
         }
-        #editor, #filtered-editor {
+
+        #editor,
+        #filtered-editor {
             flex: 1;
             min-width: 200px;
             height: 100%;
             border: 2px dashed transparent;
             transition: border-color 0.3s;
         }
-        #editor.drag-over, #filtered-editor.drag-over {
+
+        #editor.drag-over,
+        #filtered-editor.drag-over {
             border-color: #4CAF50;
         }
+
         .divider {
             width: 4px;
             background: #333;
             cursor: col-resize;
         }
+
         .filter-container {
             display: flex;
             flex-direction: column;
             gap: 10px;
             margin: 0px 0;
         }
+
         .filter-item {
             display: flex;
             align-items: center;
@@ -78,25 +92,30 @@
             padding: 4px 8px;
             border-radius: 4px;
         }
+
         .filter-type {
             padding: 5px;
             border-radius: 4px;
             border: 1px solid #ccc;
         }
+
         .filter-pattern {
             flex: 1;
             padding: 5px;
             border-radius: 4px;
             border: 1px solid #ccc;
         }
+
         .highlight-controls {
             display: flex;
             align-items: center;
             gap: 5px;
         }
+
         .highlight-checkbox {
             margin: 0;
         }
+
         .highlight-color {
             width: 14px;
             height: 14px;
@@ -105,17 +124,21 @@
             cursor: pointer;
             border-radius: 0;
         }
+
         .highlight-color::-webkit-color-swatch-wrapper {
             padding: 0;
         }
+
         .highlight-color::-webkit-color-swatch {
             border: none;
             border-radius: 0;
         }
+
         .highlight-color:disabled {
             opacity: 0.5;
             cursor: not-allowed;
         }
+
         .filter-type {
             background-color: #444;
             color: white;
@@ -124,13 +147,16 @@
             border-radius: 3px;
             cursor: pointer;
         }
+
         .filter-type:hover {
             background-color: #555;
         }
+
         .filter-type option {
             background-color: #444;
             color: white;
         }
+
         .delete-filter {
             background-color: #d32f2f;
             color: white;
@@ -139,9 +165,11 @@
             border-radius: 3px;
             cursor: pointer;
         }
+
         .delete-filter:hover {
             background-color: #b71c1c;
         }
+
         .filter-section {
             overflow: hidden;
             max-height: none;
@@ -151,14 +179,17 @@
             padding: 2px 0;
             transition: background-color 0.3s;
         }
+
         .filter-section.drag-over {
             background-color: rgba(76, 175, 80, 0.1);
             outline: 2px dashed #4CAF50;
             outline-offset: -2px;
         }
+
         .filter-section.collapsed {
             display: none;
         }
+
         .filter-toggle {
             display: flex;
             align-items: center;
@@ -173,27 +204,33 @@
             border: 1px solid #404040;
             transition: all 0.2s ease;
         }
+
         .filter-toggle:hover {
             background-color: #383838;
             border-color: #505050;
             color: #ffffff;
         }
+
         .filter-toggle i {
             color: #64B5F6;
             font-size: 14px;
         }
+
         .filter-toggle.collapsed i {
             transform: rotate(-90deg);
         }
+
         .filter-toggle span {
             font-size: 13px;
             letter-spacing: 0.5px;
         }
+
         .filter-buttons {
             display: flex;
             gap: 8px;
             justify-content: flex-start;
         }
+
         .filter-button {
             padding: 0px 12px;
             border: none;
@@ -205,31 +242,38 @@
             height: 26px;
             white-space: nowrap;
         }
+
         .add-filter {
             background-color: #2d2d2d;
             color: #e0e0e0;
         }
+
         .add-filter:hover {
             background-color: #383838;
             color: #ffffff;
         }
+
         .apply-filter {
             background-color: #1565C0;
             color: white;
         }
+
         .apply-filter:hover {
             background-color: #1976D2;
         }
+
         .enable-checkbox {
             margin: 0;
             width: 14px;
             height: 14px;
             cursor: pointer;
         }
+
         /* 动态生成的高亮样式 */
         .monaco-editor .highlight {
             background-color: inherit;
         }
+
         .fullscreen {
             position: fixed !important;
             top: 0 !important;
@@ -238,14 +282,15 @@
             height: 100vh !important;
             z-index: 9999 !important;
         }
-        body.has-fullscreen #editors-container > :not(.fullscreen) {
+
+        body.has-fullscreen #editors-container> :not(.fullscreen) {
             display: none;
         }
-        
+
         .filtered-line {
             background-color: rgba(86, 156, 214, 0.2) !important;
         }
-        
+
         .filtered-line-decoration {
             background-color: rgba(86, 156, 214, 0.4) !important;
             width: 5px !important;
@@ -253,6 +298,7 @@
         }
     </style>
 </head>
+
 <body>
     <div id="toolbar">
         <div class="toolbar-row">
@@ -380,16 +426,11 @@
                 if (files.length === 0) return;
 
                 const file = files[0];
+                console.log('Dropped file:', file);
                 try {
-                    const content = await window.electronAPI.readFile(file.path);
+                    const { filePath, content } = await window.electronAPI.openFile(file.path);
                     if (content !== null) {
-                        editor.setValue(content);
-                        // 更新当前文件路径
-                        currentFilePath = file.path;
-                        // 更新窗口标题
-                        document.title = `LogAnalyzer - ${file.path}`;
-                        // 更新文件信息
-                        updateFileInfo(file.path);
+                        onDidOpenFile(filePath, content);
                     }
                 } catch (err) {
                     console.error('Error reading file:', err);
@@ -401,10 +442,10 @@
             filterSection.addEventListener('dragover', (e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                
-                const isJsonFile = Array.from(e.dataTransfer.items).some(item => 
+
+                const isJsonFile = Array.from(e.dataTransfer.items).some(item =>
                     item.kind === 'file' && (
-                        item.type.toLowerCase() === 'application/json' || 
+                        item.type.toLowerCase() === 'application/json' ||
                         (item.getAsFile()?.name || '').toLowerCase().endsWith('.json')
                     )
                 );
@@ -433,19 +474,13 @@
                 const file = files[0];
                 if (file.name.toLowerCase().endsWith('.json')) {
                     try {
-                        const fileContent = await window.electronAPI.readFile(file.path);
-                        const config = JSON.parse(fileContent);
-                        
-                        if (!config || !config.patterns) {
-                            throw new Error('无效的配置格式');
-                        }
+                        const config = await window.electronAPI.importFilterCfg(file.path);
 
                         if (!e.ctrlKey && !e.metaKey) {
                             clearFilters();
                         }
 
-                        currentFilterConfig.patterns = currentFilterConfig.patterns.concat(config.patterns);
-                        updateFilterUI();
+                        onDidImportFilterCfg(config);
                     } catch (err) {
                         console.error('加载配置错误:', err);
                         alert('加载配置错误: ' + err.message);
@@ -468,23 +503,23 @@
             document.addEventListener('keydown', (e) => {
                 if (e.key === 'F11') {
                     e.preventDefault();
-                    
+
                     // 检查当前焦点是否在编辑器上
                     const activeElement = document.activeElement;
                     const sourceEditorElement = document.getElementById('editor');
                     const filteredEditorElement = document.getElementById('filtered-editor');
-                    
+
                     if (sourceEditorElement.contains(activeElement) || filteredEditorElement.contains(activeElement)) {
-                        const targetEditor = sourceEditorElement.contains(activeElement) ? 
-                            document.getElementById('editor') : 
+                        const targetEditor = sourceEditorElement.contains(activeElement) ?
+                            document.getElementById('editor') :
                             document.getElementById('filtered-editor');
-                        
+
                         if (currentFullscreenEditor === targetEditor) {
                             // 退出全屏
                             targetEditor.classList.remove('fullscreen');
                             document.body.classList.remove('has-fullscreen');
                             currentFullscreenEditor = null;
-                            
+
                             // 重新布局两个编辑器
                             setTimeout(() => {
                                 editor.layout();
@@ -500,12 +535,12 @@
                                     filteredEditor.layout();
                                 }, 0);
                             }
-                            
+
                             // 进入全屏
                             targetEditor.classList.add('fullscreen');
                             document.body.classList.add('has-fullscreen');
                             currentFullscreenEditor = targetEditor;
-                            
+
                             // 重新布局当前编辑器
                             setTimeout(() => {
                                 if (sourceEditorElement === targetEditor) {
@@ -522,7 +557,7 @@
 
         // 监听菜单事件
         window.electronAPI.onMenuOpenFile(() => {
-            openFile();
+            showOpenFileDialog();
         });
 
         // 监听重新加载文件事件
@@ -530,7 +565,7 @@
             if (!currentFilePath) {
                 return;
             }
-            
+
             const result = await window.electronAPI.reloadCurrentFile();
             if (result) {
                 const { content, filePath } = result;
@@ -550,7 +585,7 @@
             try {
                 // 在保存之前更新当前配置
                 updateCurrentConfig();
-                
+
                 // 检查是否有过滤条件
                 if (!currentFilterConfig.patterns || currentFilterConfig.patterns.length === 0) {
                     const shouldContinue = confirm('当前没有过滤条件，是否继续保存？');
@@ -558,7 +593,7 @@
                         return;
                     }
                 }
-                
+
                 console.log('Saving filter config:', currentFilterConfig);
                 const result = await window.electronAPI.saveFilterConfig(currentFilterConfig, filePath);
                 if (!result.success) {
@@ -573,18 +608,10 @@
             }
         });
 
-        window.electronAPI.onFilterLoadConfig(async (event, config) => {
-            try {
-                console.log('Loading filter config:', config);
-                if (!config || !config.patterns) {
-                    throw new Error('无效的配置格式');
-                }
-                currentFilterConfig = config;
-                updateFilterUI(); 
-            } catch (err) {
-                console.error('应用配置错误:', err);
-                alert('应用配置错误: ' + err.message);
-            }
+        window.electronAPI.onFilterLoadConfig(async (event, filepath) => {
+            const config = await window.electronAPI.importFilterCfg(filepath);
+
+            onDidImportFilterCfg(config);
         });
 
         // 清除所有过滤器
@@ -616,7 +643,7 @@
         function updateFilterUI() {
             console.log('Updating filter UI with config:', currentFilterConfig);
             const container = document.getElementById('filter-container');
-            
+
             // 清空容器
             while (container.firstChild) {
                 container.removeChild(container.firstChild);
@@ -653,11 +680,11 @@
                     const enableCheckbox = filterItem.querySelector('.enable-checkbox');
                     const highlightCheckbox = filterItem.querySelector('.highlight-checkbox');
                     const highlightColor = filterItem.querySelector('.highlight-color');
-                    
+
                     enableCheckbox.addEventListener('change', () => {
                         updateCurrentConfig();
                     });
-                    
+
                     highlightCheckbox.addEventListener('change', () => {
                         highlightColor.disabled = !highlightCheckbox.checked;
                         updateCurrentConfig();
@@ -685,7 +712,7 @@
         // 更新输入框提示
         function updatePlaceholder(select, input) {
             if (!select || !input) return;
-            
+
             switch (select.value) {
                 case 'text':
                     input.placeholder = '输入要匹配的文本';
@@ -730,7 +757,7 @@
             enableCheckbox.addEventListener('change', () => {
                 updateCurrentConfig();
             });
-            
+
             highlightCheckbox.addEventListener('change', () => {
                 highlightColor.disabled = !highlightCheckbox.checked;
                 updateCurrentConfig();
@@ -860,10 +887,10 @@
                 const sortedIndices = Array.from(filteredLineIndices).sort((a, b) => a - b);
                 const filteredLines = sortedIndices.map(index => lines[index]);
                 const filteredContent = filteredLines.join('\n');
-                
+
                 // 保存行号映射
                 lineMapping = sortedIndices;
-                
+
                 filteredEditor.setValue(filteredContent);
 
                 // 添加双击事件处理
@@ -873,32 +900,32 @@
                         if (position) {
                             const filteredLineNumber = position.lineNumber - 1; // Monaco编辑器行号从1开始
                             const originalLineNumber = lineMapping[filteredLineNumber];
-                            
+
                             if (originalLineNumber !== undefined) {
                                 // 如果当前处于全屏状态，先退出全屏
                                 if (currentFullscreenEditor) {
-                                    const editorElement = currentFullscreenEditor === editor ? 
-                                        document.getElementById('editor') : 
+                                    const editorElement = currentFullscreenEditor === editor ?
+                                        document.getElementById('editor') :
                                         document.getElementById('filtered-editor');
-                                        
+
                                     editorElement.classList.remove('fullscreen');
                                     document.body.classList.remove('has-fullscreen');
                                     currentFullscreenEditor = null;
-                                    
+
                                     // 重新布局两个编辑器
                                     setTimeout(() => {
                                         editor.layout();
                                         filteredEditor.layout();
                                     }, 0);
                                 }
-                                
+
                                 // 跳转到原始日志对应行
                                 editor.revealLineInCenter(originalLineNumber + 1); // +1因为Monaco编辑器行号从1开始
                                 editor.setPosition({
                                     lineNumber: originalLineNumber + 1,
                                     column: 1
                                 });
-                                
+
                                 // 高亮显示当前行
                                 editor.setSelection({
                                     startLineNumber: originalLineNumber + 1,
@@ -906,7 +933,7 @@
                                     endLineNumber: originalLineNumber + 1,
                                     endColumn: editor.getModel().getLineMaxColumn(originalLineNumber + 1)
                                 });
-                                
+
                                 // 聚焦到原始编辑器
                                 editor.focus();
                             }
@@ -925,7 +952,7 @@
                     const decorations = [];
 
                     // 为每个高亮颜色创建样式
-                    highlightRanges.forEach(({color}, index) => {
+                    highlightRanges.forEach(({ color }, index) => {
                         const style = document.createElement('style');
                         style.setAttribute('data-highlight', '');
                         style.textContent = `
@@ -937,7 +964,7 @@
                     });
 
                     // 应用高亮装饰
-                    highlightRanges.forEach(({pattern, color, isRegex, lines}, index) => {
+                    highlightRanges.forEach(({ pattern, color, isRegex, lines }, index) => {
                         if (lines) {
                             // 获取编辑器模型
                             const model = filteredEditor.getModel();
@@ -1004,10 +1031,10 @@
 
         function parseLineNumbers(input) {
             if (!input.trim()) return [];
-            
+
             const lineNumbers = new Set();
             const parts = input.split(',').map(part => part.trim());
-            
+
             for (const part of parts) {
                 // 处理范围 (例如: "1-100")
                 const rangeMatch = part.match(/^(\d+)-(\d+)$/);
@@ -1020,37 +1047,59 @@
                     }
                     continue;
                 }
-                
+
                 // 处理单个数字
                 const numberMatch = part.match(/^\d+$/);
                 if (numberMatch) {
                     lineNumbers.add(parseInt(part));
                 }
             }
-            
+
             return Array.from(lineNumbers).sort((a, b) => a - b);
         }
 
-        async function openFile() {
-            const result = await window.electronAPI.openFile();
+        function onDidOpenFile(filePath, content) {
+            editor.setValue(content);
+
+            // 更新文件信息
+            updateFileInfo(filePath);
+
+            // clearFilters();
+        }
+
+        function onDidImportFilterCfg(config) {
+            currentFilterConfig.patterns = currentFilterConfig.patterns.concat(config.patterns);
+            updateFilterUI();
+        }
+
+        async function showOpenFileDialog() {
+            console.log(`showOpenFileDialog`);
+            const result = await window.electronAPI.dialogOpenFile();
+
             if (result) {
                 const { content, filePath } = result;
-                currentFilePath = filePath;
-                editor.setValue(content);
-                clearFilters();
+
+                onDidOpenFile(filePath, content);
+            }
+            else {
+                console.error(`showOpenFileDialog error: ${result}`);
             }
         }
 
         function updateFileInfo(filePath) {
+            currentFilePath = filePath;
+            // 更新窗口标题
+            document.title = `LogAnalyzer - ${filePath}`;
         }
 
         function toggleFilterPanel() {
             const filterToggle = document.querySelector('.filter-toggle');
             const filterSection = document.getElementById('filter-section');
-            
+
             filterToggle.classList.toggle('collapsed');
             filterSection.classList.toggle('collapsed');
         }
     </script>
 </body>
+
 </html>
