@@ -8,8 +8,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     openFile: async (filePath) => {
         return await ipcRenderer.invoke('file:open', filePath);
     },
-    importFilterCfg: async (filterPath) => {
-        return await ipcRenderer.invoke('file:read', filePath);
+    importFilterCfg: async (filePath) => {
+        return await ipcRenderer.invoke('filter:import', filePath);
     },
     saveFilterConfig: (config, filePath) => {
         return ipcRenderer.invoke('filter:save-config', config, filePath);
@@ -19,7 +19,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     onMenuOpenFile: (callback) => ipcRenderer.on('menu:open-file', callback),
     onMenuSaveFile: (callback) => ipcRenderer.on('menu:save-file', callback),
     onFilterSaveConfig: (callback) => ipcRenderer.on('filter:save-config-dialog', callback),
-    onFilterLoadConfig: (callback) => ipcRenderer.on('filter:load-config-result', callback),
+    onFilterLoadConfig: (callback) => ipcRenderer.on('filter:load', callback),
     reloadCurrentFile: () => ipcRenderer.invoke('file:reload'),
     onReloadFile: (callback) => ipcRenderer.on('menu:reload-file', callback),
     showItemInFolder: (filePath) => ipcRenderer.send('show-item-in-folder', filePath),

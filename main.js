@@ -117,6 +117,17 @@ ipcMain.handle('file:open', async (event, filePath) => {
     }
 });
 
+ipcMain.handle('filter:import', async (event, filePath) => {
+    try {
+        // 读取文件内容
+        return await doImportFilterConfig(filePath);
+
+    } catch (error) {
+        logError('Error reading file:', error);
+        throw error;
+    }
+});
+
 // 添加文件读取处理器
 ipcMain.handle('file:read', async (event, filePath) => {
     try {
@@ -458,10 +469,7 @@ function createMenu() {
                             const configPath = result.filePaths[0];
                             try {
                                 log('Reading config file:', configPath);
-                                const configData = await fs.readFile(configPath, 'utf-8');
-                                const config = JSON.parse(configData);
-                                log('Sending config to renderer:', config);
-                                mainWindow.webContents.send('filter:load-config-result', config);
+                                mainWindow.webContents.send('filter:load', configPath);
                             } catch (err) {
                                 logError('Error loading filter config:', err);
                                 dialog.showErrorBox('错误', '加载配置文件失败: ' + err.message);
@@ -609,6 +617,17 @@ function updateWindowTitle(filePath) {
         const title = filePath ? `LogAnalyzer - ${filePath}` : 'LogAnalyzer';
         mainWindow.setTitle(title);
     }
+}
+
+async function doImportFilterConfig(filePath) {
+    const configData = await fs.readFile(filePath, 'utf-8');
+    const config = JSON.parse(configData);
+    console.log('Loading filter config:', config);
+    if (!config || !config.patterns) {
+        throw new Error('无效的配置格式');
+    }
+
+    return config;
 }
 
 async function doOpenFile(filePath) {
