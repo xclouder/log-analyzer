@@ -1,0 +1,24 @@
+{
+  "name": "log-analyzer-plugin-cli",
+  "version": "1.0.0",
+  "description": "CLI tool for creating and building Log Analyzer plugins",
+  "main": "index.js",
+  "bin": {
+    "log-analyzer-plugin": "./bin/log-analyzer-plugin.js"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "log-analyzer",
+    "plugin",
+    "cli"
+  ],
+  "dependencies": {
+    "commander": "^11.1.0",
+    "inquirer": "^8.2.6",
+    "fs-extra": "^11.2.0",
+    "archiver": "^6.0.1",
+    "chalk": "^4.1.2"
+  }
+}
