@@ -90,9 +90,22 @@
             border-color: #007bff;
             background: #e7f3ff;
         }
+        .close-button {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            padding: 5px 10px;
+            background-color: #ff5f5f;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
     </style>
 </head>
 <body>
+    <button class="close-button" onclick="window.close();">关闭</button>
     <div class="install-section">
         <h2>安装插件</h2>
         <div class="drag-area" id="dragArea">
