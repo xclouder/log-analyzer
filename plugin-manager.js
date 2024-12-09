@@ -60,43 +60,65 @@ class PluginManager {
         }
     }
 
-    async loadPluginsFromDir(directory, isBuiltin, pluginBasePath) {
-        const pluginFiles = await fsPromises.readdir(directory);
-        for (const file of pluginFiles) {
-            const pluginDir = path.join(directory, file);
-            const packageJsonPath = path.join(pluginDir, 'package.json');
-            if (!fs.existsSync(packageJsonPath)) {
-                throw new Error('package.json not found in plugin directory');
-            }
+    // async loadPluginsFromDir(directory, isBuiltin, pluginBasePath) {
+    //     const pluginFiles = await fsPromises.readdir(directory);
+    //     for (const file of pluginFiles) {
+    //         const pluginDir = path.join(directory, file);
+    //         const packageJsonPath = path.join(pluginDir, 'package.json');
+    //         if (!fs.existsSync(packageJsonPath)) {
+    //             throw new Error('package.json not found in plugin directory');
+    //         }
 
-            const packageJson = JSON.parse(await fsPromises.readFile(packageJsonPath, 'utf-8'));
+    //         const packageJson = JSON.parse(await fsPromises.readFile(packageJsonPath, 'utf-8'));
 
-            if (!this.validatePluginPackage(packageJson)) {
-                throw new Error('Invalid plugin package.json format');
-            }
+    //         if (!this.validatePluginPackage(packageJson)) {
+    //             throw new Error('Invalid plugin package.json format');
+    //         }
 
-            const PluginClass = require(path.join(pluginDir, packageJson.main))(pluginBasePath);
-            const plugin = new PluginClass(this.api);
+    //         const PluginClass = require(path.join(pluginDir, packageJson.main))(pluginBasePath);
+    //         const plugin = new PluginClass(this.api);
 
-            this.plugins.set(packageJson.name, {
-                instance: plugin,
-                metadata: {
-                    ...packageJson,
-                    isBuiltin,
-                    path: pluginDir
+    //         this.plugins.set(packageJson.name, {
+    //             instance: plugin,
+    //             metadata: {
+    //                 ...packageJson,
+    //                 isBuiltin,
+    //                 path: pluginDir
+    //             }
+    //         });
+    //     }
+    // }
+
+    // 从指定目录加载插件
+    async loadPluginsFromDir(pluginsDir, isBuiltin, pluginBasePath) {
+        if (!pluginsDir) {
+            console.error('Invalid plugins directory:', pluginsDir);
+            return;
+        }
+
+        try {
+            console.log(`Loading plugins from ${pluginsDir} (isBuiltin: ${isBuiltin})`);
+            const entries = await fsPromises.readdir(pluginsDir, { withFileTypes: true });
+            
+            for (const entry of entries) {
+                if (entry.isDirectory()) {
+                    const pluginDir = path.join(pluginsDir, entry.name);
+                    await this.loadPlugin(pluginDir, isBuiltin, pluginBasePath);
                 }
-            });
+            }
+        } catch (err) {
+            console.error(`Error loading plugins from ${pluginsDir}:`, err);
         }
     }
 
     // 加载单个插件
-    async loadPlugin(pluginDir, isBuiltin) {
+    async loadPlugin(pluginDir, isBuiltin, pluginBasePath) {
         try {
             console.log(`Loading plugin, dir: ${pluginDir}`);
             // 读取插件的 package.json
             const packageJsonPath = path.join(pluginDir, 'package.json');
             if (!fs.existsSync(packageJsonPath)) {
-                throw new Error('package.json not found in plugin directory');
+                throw new Error(`package.json not found in plugin directory:${packageJsonPath}`);
             }
 
             const packageJson = JSON.parse(await fsPromises.readFile(packageJsonPath, 'utf-8'));
@@ -104,9 +126,6 @@ class PluginManager {
             if (!this.validatePluginPackage(packageJson)) {
                 throw new Error('Invalid plugin package.json format');
             }
-
-
-            const pluginBasePath = path.resolve(__dirname, 'plugin-base.js');
             
             // 加载插件主文件
             const mainFile = path.join(pluginDir, packageJson.main);
@@ -216,9 +235,11 @@ class PluginManager {
             console.log('Moving plugin to:', targetDir);
             await fsPromises.rename(tempDir, targetDir);
             
+            const pluginBasePath = path.resolve(__dirname, 'plugin-base.js');
+
             // 加载新插件
             console.log('Loading new plugin...');
-            await this.loadPlugin(targetDir, false);
+            await this.loadPlugin(targetDir, false, pluginBasePath);
             
             console.log('Plugin installation completed successfully');
             return { success: true, plugin: packageJson };
