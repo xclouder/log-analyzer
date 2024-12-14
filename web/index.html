@@ -96,5 +96,14 @@
             <p>&copy; 2024 LogAnalyzer. All rights reserved.</p>
         </div>
     </footer>
+    <div id="commandOverlay" class="command-overlay"></div>
+    <div id="commandPalette" class="command-palette">
+        <input type="text" id="commandInput" class="command-palette-input" placeholder="输入命令...">
+        <div id="commandList" class="command-list"></div>
+    </div>
+    <script src="command-palette.js"></script>
+    <script>
+        window.commandPalette = new CommandPalette();
+    </script>
 </body>
 </html>

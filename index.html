@@ -297,6 +297,7 @@
             margin-left: 3px;
         }
     </style>
+    <link rel="stylesheet" href="command-palette.css">
 </head>
 
 <body>
@@ -321,6 +322,14 @@
         <div class="divider"></div>
         <div id="filtered-editor"></div>
     </div>
+
+    <!-- 在editors-container后添加 -->
+    <div id="commandOverlay" class="command-overlay"></div>
+    <div id="commandPalette" class="command-palette">
+        <input type="text" id="commandInput" class="command-palette-input" placeholder="输入命令...">
+        <div id="commandList" class="command-list"></div>
+    </div>
+    <script src="command-palette.js"></script>
 
     <script src="node_modules/monaco-editor/min/vs/loader.js"></script>
     <script>
