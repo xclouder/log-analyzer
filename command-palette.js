@@ -1,13 +1,14 @@
 class CommandPalette {
     constructor() {
         this.commands = [
-            { id: 'open-file', title: '打开文件', action: () => showOpenFileDialog() },
-            { id: 'reload-file', title: '重新加载文件', action: () => window.electronAPI.reloadCurrentFile() },
-            { id: 'save-filter', title: '保存过滤配置', action: () => applyFilters() },
-            { id: 'load-filter', title: '加载过滤配置', action: () => window.electronAPI.onFilterLoadConfig() },
-            { id: 'show-in-folder', title: '在文件夹中显示', action: () => window.electronAPI.showItemInFolder(currentFilePath) },
-            { id: 'open-plugin-manager', title: '打开插件管理器', action: () => window.electronAPI.openPluginManager() }
-        ].sort((a, b) => a.title.localeCompare(b.title));
+            // { id: 'open-file', title: '打开文件', action: () => showOpenFileDialog() },
+            // { id: 'reload-file', title: '重新加载文件', action: () => window.electronAPI.reloadCurrentFile() },
+            // { id: 'save-filter', title: '保存过滤配置', action: () => applyFilters() },
+            // { id: 'load-filter', title: '加载过滤配置', action: () => window.electronAPI.onFilterLoadConfig() },
+            // { id: 'show-in-folder', title: '在文件夹中显示', action: () => window.electronAPI.showItemInFolder(currentFilePath) },
+            // { id: 'open-plugin-manager', title: '打开插件管理器', action: () => window.electronAPI.openPluginManager() }
+        ];
+        //.sort((a, b) => a.title.localeCompare(b.title));
 
         this.palette = document.getElementById('commandPalette');
         this.overlay = document.getElementById('commandOverlay');
@@ -17,6 +18,15 @@ class CommandPalette {
 
         this.setupEventListeners();
         this.renderCommands();
+    }
+
+    registerCmd(cmdId, title, action) {
+        this.commands.forEach(cmd => {
+            if (cmd.id === cmdId) {
+                console.error(`cmdId:${cmdId} already registered`);
+                return;
+            }
+        });
     }
 
     setupEventListeners() {
