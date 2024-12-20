@@ -22,6 +22,7 @@ class CommandPalette {
         this.commands = new Map();
         this.filteredCmds = [];
         
+
         // { id: 'open-file', title: '打开文件', action: () => showOpenFileDialog() },
         // { id: 'reload-file', title: '重新加载文件', action: () => window.electronAPI.reloadCurrentFile() },
         // { id: 'save-filter', title: '保存过滤配置', action: () => applyFilters() },
@@ -39,6 +40,7 @@ class CommandPalette {
 
         this.setupEventListeners();
         this.renderCommands();
+
     }
 
     registerCmd(cmdId, title, action) {
@@ -69,7 +71,6 @@ class CommandPalette {
     setupEventListeners() {
         document.addEventListener('keydown', (e) => {
             if (e.ctrlKey && e.shiftKey && e.key === 'P') {
-                console.log(`~~~~~~`);
                 e.preventDefault();
                 this.show();
             } else if (e.key === 'Escape' && this.isVisible()) {
@@ -122,12 +123,14 @@ class CommandPalette {
     filterCommands() {
         const query = this.input.value.toLowerCase();
 
-        this.filteredCmds = [];
+        var cmds = [];
         this.commands.forEach((cmd, key) => {
             if (cmd.title.toLowerCase().includes(query)) {
-                this.filteredCmds.push(cmd);
+                cnds.push(cmd);
             }
         })
+
+        this.filteredCmds = cmds.sort((a, b) => a.title.localeCompare(b.title));
         
         this.renderCommands(this.filteredCmds);
         this.selectedIndex = this.filteredCmds.length > 0 ? 0 : -1;
