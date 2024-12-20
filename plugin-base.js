@@ -4,11 +4,11 @@ class Plugin {
         this.api = api;
     }
 
-    onActivate() {
+    onActivate(context) {
         
     }
 
-    onDeactivate() {
+    onDeactivate(context) {
         
     }
     

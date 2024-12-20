@@ -2,18 +2,12 @@ const { BrowserWindow } = require('electron');
 const path = require('path');
 const fs = require('fs').promises;
 
-class Context {
-    constructor() {
-        this.logFilePath = '';
-        this.logContent = '';
+class Disposable {
+    constructor(disposeAction) {
+        this.disposeAction = disposeAction;
     }
-}
-
-class Command {
-    constructor() {
-        this.name = '';
-        this.description = '';
-        this.action = undefined;
+    dispose() {
+        this.disposeAction();
     }
 }
 
@@ -62,7 +56,7 @@ class PluginAPI {
     }
 
     registerCommand(pluginIns, cmd) {
-
+        
     }
 
     unregisterCommand(pluginIns) {
@@ -70,4 +64,4 @@ class PluginAPI {
     }
 }
 
-module.exports = PluginAPI;
+module.exports = {PluginAPI, Disposable};

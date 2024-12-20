@@ -1,7 +1,7 @@
 const fs = require('fs');
 const fsPromises = require('fs').promises;
 const path = require('path');
-const PluginAPI = require('./plugin-api');
+const {PluginAPI, Disposable} = require('./plugin-api');
 const AdmZip = require('adm-zip');
 
 class PluginManager {
@@ -64,6 +64,12 @@ class PluginManager {
         const pluginFiles = await fsPromises.readdir(directory);
         for (const file of pluginFiles) {
             const pluginDir = path.join(directory, file);
+
+            const stats = fs.statSync(pluginDir);
+            if (!stats.isDirectory()) {
+                continue;
+            }
+            
             const packageJsonPath = path.join(pluginDir, 'package.json');
             if (!fs.existsSync(packageJsonPath)) {
                 throw new Error('package.json not found in plugin directory');
@@ -114,7 +120,8 @@ class PluginManager {
             
             // 创建插件实例
             const plugin = new PluginClass(this.api);
-            
+            const pluginCtx = new PluginContext(plugin, api);
+
             // 存储插件信息
             this.plugins.set(packageJson.name, {
                 instance: plugin,
@@ -122,14 +129,15 @@ class PluginManager {
                     ...packageJson,
                     isBuiltin,
                     path: pluginDir
-                }
+                },
+                context: pluginCtx,
             });
-            
-            // 如果插件有 activate 方法，调用它
-            if (typeof plugin.activate === 'function') {
-                await plugin.activate();
+
+            // 如果插件有 onActivate 方法，调用它
+            if (typeof plugin.onActivate === 'function') {
+                await plugin.onActivate(pluginCtx);
             }
-            
+
             console.log(`Plugin loaded successfully: ${packageJson.name}`);
         } catch (err) {
             console.error(`Failed to load plugin from ${pluginDir}:`, err);

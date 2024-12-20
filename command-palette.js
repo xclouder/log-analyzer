@@ -1,13 +1,34 @@
+// 在渲染进程中，我们通过 window.electronAPI 获取功能
+const PluginAPI = window.electronAPI;
+class Disposable {
+    constructor(disposeAction) {
+        this.disposeAction = disposeAction;
+    }
+    dispose() {
+        this.disposeAction();
+    }
+}
+
+class Command {
+    constructor(id, title, action) {
+        this.id = id;
+        this.title = title;
+        this.action = action;
+    }
+}
+
 class CommandPalette {
     constructor() {
-        this.commands = [
-            // { id: 'open-file', title: '打开文件', action: () => showOpenFileDialog() },
-            // { id: 'reload-file', title: '重新加载文件', action: () => window.electronAPI.reloadCurrentFile() },
-            // { id: 'save-filter', title: '保存过滤配置', action: () => applyFilters() },
-            // { id: 'load-filter', title: '加载过滤配置', action: () => window.electronAPI.onFilterLoadConfig() },
-            // { id: 'show-in-folder', title: '在文件夹中显示', action: () => window.electronAPI.showItemInFolder(currentFilePath) },
-            // { id: 'open-plugin-manager', title: '打开插件管理器', action: () => window.electronAPI.openPluginManager() }
-        ];
+        this.commands = new Map();
+        this.filteredCmds = [];
+        
+        // { id: 'open-file', title: '打开文件', action: () => showOpenFileDialog() },
+        // { id: 'reload-file', title: '重新加载文件', action: () => window.electronAPI.reloadCurrentFile() },
+        // { id: 'save-filter', title: '保存过滤配置', action: () => applyFilters() },
+        // { id: 'load-filter', title: '加载过滤配置', action: () => window.electronAPI.onFilterLoadConfig() },
+        // { id: 'show-in-folder', title: '在文件夹中显示', action: () => window.electronAPI.showItemInFolder(currentFilePath) },
+        // { id: 'open-plugin-manager', title: '打开插件管理器', action: () => window.electronAPI.openPluginManager() }
+        
         //.sort((a, b) => a.title.localeCompare(b.title));
 
         this.palette = document.getElementById('commandPalette');
@@ -21,17 +42,34 @@ class CommandPalette {
     }
 
     registerCmd(cmdId, title, action) {
-        this.commands.forEach(cmd => {
-            if (cmd.id === cmdId) {
-                console.error(`cmdId:${cmdId} already registered`);
-                return;
-            }
+        if (this.commands.has(cmdId)) {
+            console.error(`cmdId:${cmdId} already registered`);
+            return;
+        }
+
+        const cmd = new Command(cmdId, title, action);
+        this.commands.set(cmdId, cmd);
+
+        const disposable = new Disposable(()=> {
+            this.unregisterCmd(cmd);
         });
+
+        return disposable;
+    }
+
+    unregisterCmd(cmd) {
+        if (!this.commands.has(cmd.id)) {
+            console.error(`cmdId:${cmd.id} NOT registered`);
+            return;
+        }
+
+        this.commands.delete(cmd.id);
     }
 
     setupEventListeners() {
         document.addEventListener('keydown', (e) => {
             if (e.ctrlKey && e.shiftKey && e.key === 'P') {
+                console.log(`~~~~~~`);
                 e.preventDefault();
                 this.show();
             } else if (e.key === 'Escape' && this.isVisible()) {
@@ -83,15 +121,20 @@ class CommandPalette {
 
     filterCommands() {
         const query = this.input.value.toLowerCase();
-        const filtered = this.commands.filter(cmd => 
-            cmd.title.toLowerCase().includes(query)
-        );
-        this.renderCommands(filtered);
-        this.selectedIndex = filtered.length > 0 ? 0 : -1;
+
+        this.filteredCmds = [];
+        this.commands.forEach((cmd, key) => {
+            if (cmd.title.toLowerCase().includes(query)) {
+                this.filteredCmds.push(cmd);
+            }
+        })
+        
+        this.renderCommands(this.filteredCmds);
+        this.selectedIndex = this.filteredCmds.length > 0 ? 0 : -1;
         this.updateSelection();
     }
 
-    renderCommands(commands = this.commands) {
+    renderCommands(commands) {
         this.list.innerHTML = '';
         commands.forEach((cmd, index) => {
             const item = document.createElement('div');
@@ -137,10 +180,8 @@ class CommandPalette {
     executeSelected() {
         const items = this.list.children;
         if (this.selectedIndex >= 0 && this.selectedIndex < items.length) {
-            const filteredCommands = this.commands.filter(cmd =>
-                cmd.title.toLowerCase().includes(this.input.value.toLowerCase())
-            );
-            const command = filteredCommands[this.selectedIndex];
+
+            const command = this.filteredCmds[this.selectedIndex];
             if (command) {
                 this.hide();
                 command.action();
