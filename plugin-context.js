@@ -6,3 +6,4 @@ class PluginContext {
     }
 }
 
+module.exports = {PluginContext};

@@ -1,5 +1,6 @@
 // 在渲染进程中，我们通过 window.electronAPI 获取功能
 const PluginAPI = window.electronAPI;
+
 class Disposable {
     constructor(disposeAction) {
         this.disposeAction = disposeAction;
@@ -19,56 +20,27 @@ class Command {
 
 class CommandPalette {
     constructor() {
-        this.commands = new Map();
-        this.filteredCmds = [];
-        
-
-        // { id: 'open-file', title: '打开文件', action: () => showOpenFileDialog() },
-        // { id: 'reload-file', title: '重新加载文件', action: () => window.electronAPI.reloadCurrentFile() },
-        // { id: 'save-filter', title: '保存过滤配置', action: () => applyFilters() },
-        // { id: 'load-filter', title: '加载过滤配置', action: () => window.electronAPI.onFilterLoadConfig() },
-        // { id: 'show-in-folder', title: '在文件夹中显示', action: () => window.electronAPI.showItemInFolder(currentFilePath) },
-        // { id: 'open-plugin-manager', title: '打开插件管理器', action: () => window.electronAPI.openPluginManager() }
-        
-        //.sort((a, b) => a.title.localeCompare(b.title));
-
+        // 获取DOM元素
         this.palette = document.getElementById('commandPalette');
         this.overlay = document.getElementById('commandOverlay');
         this.input = document.getElementById('commandInput');
         this.list = document.getElementById('commandList');
+
+        // 检查DOM元素是否存在
+        if (!this.palette || !this.overlay || !this.input || !this.list) {
+            console.error('Command palette DOM elements not found');
+            return;
+        }
+
         this.selectedIndex = -1;
-
+        this.filteredCommands = [];
+        
         this.setupEventListeners();
-        this.renderCommands();
-
-    }
-
-    registerCmd(cmdId, title, action) {
-        if (this.commands.has(cmdId)) {
-            console.error(`cmdId:${cmdId} already registered`);
-            return;
-        }
-
-        const cmd = new Command(cmdId, title, action);
-        this.commands.set(cmdId, cmd);
-
-        const disposable = new Disposable(()=> {
-            this.unregisterCmd(cmd);
-        });
-
-        return disposable;
-    }
-
-    unregisterCmd(cmd) {
-        if (!this.commands.has(cmd.id)) {
-            console.error(`cmdId:${cmd.id} NOT registered`);
-            return;
-        }
-
-        this.commands.delete(cmd.id);
+        console.log('Command palette initialized');
     }
 
     setupEventListeners() {
+        // 键盘快捷键
         document.addEventListener('keydown', (e) => {
             if (e.ctrlKey && e.shiftKey && e.key === 'P') {
                 e.preventDefault();
@@ -78,10 +50,12 @@ class CommandPalette {
             }
         });
 
+        // 输入框事件
         this.input.addEventListener('input', () => {
             this.filterCommands();
         });
 
+        // 键盘导航
         this.input.addEventListener('keydown', (e) => {
             switch (e.key) {
                 case 'ArrowDown':
@@ -99,7 +73,19 @@ class CommandPalette {
             }
         });
 
+        // 点击遮罩层关闭
         this.overlay.addEventListener('click', () => this.hide());
+
+        // 监听命令变化
+        window.electronAPI.onCommandRegister(() => {
+            console.log('Commands updated');
+            this.filterCommands();
+        });
+
+        window.electronAPI.onCommandUnregister(() => {
+            console.log('Commands updated');
+            this.filterCommands();
+        });
     }
 
     show() {
@@ -120,49 +106,55 @@ class CommandPalette {
         return this.palette.classList.contains('show');
     }
 
-    filterCommands() {
-        const query = this.input.value.toLowerCase();
-
-        var cmds = [];
-        this.commands.forEach((cmd, key) => {
-            if (cmd.title.toLowerCase().includes(query)) {
-                cnds.push(cmd);
-            }
-        })
-
-        this.filteredCmds = cmds.sort((a, b) => a.title.localeCompare(b.title));
-        
-        this.renderCommands(this.filteredCmds);
-        this.selectedIndex = this.filteredCmds.length > 0 ? 0 : -1;
+    async filterCommands() {
+        const query = this.input.value;
+        this.filteredCommands = await window.electronAPI.searchCommands(query);
+        this.renderCommands();
+        this.selectedIndex = this.filteredCommands.length > 0 ? 0 : -1;
         this.updateSelection();
     }
 
-    renderCommands(commands) {
+    renderCommands() {
+        if (!this.list) {
+            console.error('Command list element not found');
+            return;
+        }
+
         this.list.innerHTML = '';
-        commands.forEach((cmd, index) => {
+        this.filteredCommands.forEach((cmd, index) => {
             const item = document.createElement('div');
             item.className = 'command-item';
-            item.textContent = cmd.title;
+            
+            const title = document.createElement('span');
+            title.textContent = cmd.title;
+            item.appendChild(title);
+
+            if (cmd.category) {
+                const category = document.createElement('span');
+                category.className = 'command-category';
+                category.textContent = cmd.category;
+                item.appendChild(category);
+            }
+
             item.addEventListener('click', () => {
                 this.selectedIndex = index;
                 this.executeSelected();
             });
+            
             this.list.appendChild(item);
         });
         this.updateSelection();
     }
 
     selectNext() {
-        const items = this.list.children;
-        if (items.length === 0) return;
-        this.selectedIndex = (this.selectedIndex + 1) % items.length;
+        if (this.filteredCommands.length === 0) return;
+        this.selectedIndex = (this.selectedIndex + 1) % this.filteredCommands.length;
         this.updateSelection();
     }
 
     selectPrevious() {
-        const items = this.list.children;
-        if (items.length === 0) return;
-        this.selectedIndex = this.selectedIndex <= 0 ? items.length - 1 : this.selectedIndex - 1;
+        if (this.filteredCommands.length === 0) return;
+        this.selectedIndex = (this.selectedIndex - 1 + this.filteredCommands.length) % this.filteredCommands.length;
         this.updateSelection();
     }
 
@@ -180,15 +172,12 @@ class CommandPalette {
         }
     }
 
-    executeSelected() {
-        const items = this.list.children;
-        if (this.selectedIndex >= 0 && this.selectedIndex < items.length) {
-
-            const command = this.filteredCmds[this.selectedIndex];
-            if (command) {
-                this.hide();
-                command.action();
-            }
+    async executeSelected() {
+        if (this.selectedIndex >= 0 && this.selectedIndex < this.filteredCommands.length) {
+            const command = this.filteredCommands[this.selectedIndex];
+            console.log('Executing command:', command.id);
+            this.hide();
+            await window.electronAPI.executeCommand(command.id);
         }
     }
 }

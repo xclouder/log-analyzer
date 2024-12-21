@@ -12,10 +12,11 @@ class Disposable {
 }
 
 class PluginAPI {
-    constructor(mainWindow) {
+    constructor(mainWindow, commandManager) {
         this.mainWindow = mainWindow;
         this.pluginWindows = new Map();
         this.fs = fs;  // 暴露 fs 模块给插件使用
+        this.commandManager = commandManager;
     }
 
     // 创建子窗口
@@ -55,13 +56,47 @@ class PluginAPI {
         return this.pluginWindows.get(pluginId);
     }
 
-    registerCommand(pluginIns, cmd) {
-        
-    }
+    registerCommand(pluginContext, cmdId, action) {
+        const meta = pluginContext.metadata;
 
-    unregisterCommand(pluginIns) {
+        console.log('Registering command:', cmdId);
+        console.log('Plugin metadata:', meta);
 
+        if (!meta || !meta.contributes || !meta.contributes.commands) {
+            console.error('Invalid plugin metadata structure');
+            return;
+        }
+
+        const cmdConfigs = meta.contributes.commands;
+        console.log('Available commands:', cmdConfigs);
+
+        const matchingCmd = cmdConfigs.find(cmdCfg => cmdCfg.command === cmdId);
+        if (!matchingCmd) {
+            console.error(`Command ${cmdId} not found in available commands`);
+            return;
+        }
+
+        // 向命令管理器注册命令
+        this.commandManager.registerCommand(
+            cmdId,
+            matchingCmd.title,
+            matchingCmd.category || meta.title,
+            action
+        );
+
+        // 通知渲染进程更新命令列表
+        this.mainWindow.webContents.send('command:register');
+
+        // 创建一个 disposable 对象来处理命令的清理
+        const disposable = new Disposable(() => {
+            console.log('Unregistering command:', cmdId);
+            this.commandManager.unregisterCommand(cmdId);
+            this.mainWindow.webContents.send('command:unregister');
+        });
+
+        pluginContext.disposables.push(disposable);
+        return disposable;
     }
 }
 
-module.exports = {PluginAPI, Disposable};
+module.exports = { PluginAPI, Disposable };
