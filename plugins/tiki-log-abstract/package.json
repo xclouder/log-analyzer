@@ -14,6 +14,10 @@
             {
                 "command": "tikistar.logAbstract",
                 "title": "Tikistar Log Abstract"
+            },
+            {
+                "command": "tikistar.testLogPattern",
+                "title": "Tikistar TestLogPattern"
             }
         ],
         "fileTypes": [
