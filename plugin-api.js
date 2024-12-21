@@ -18,6 +18,7 @@ class PluginAPI {
         this.pluginWindows = new Map();
         this.fs = fs;  // 暴露 fs 模块给插件使用
         this.commandManager = commandManager;
+        this.editorWindows = new Map();
     }
 
     // 创建子窗口
@@ -44,6 +45,60 @@ class PluginAPI {
         return win;
     }
 
+    createEditorWindow(options = {}) {
+        const win = new BrowserWindow({
+            width: options.width || 800,
+            height: options.height || 600,
+            autoHideMenuBar: true,
+            menuBarVisible: false,
+            webPreferences: {
+                nodeIntegration: true,
+                contextIsolation: false
+            }
+        });
+
+        // Remove menu
+        win.setMenu(null);
+
+        // Load the editor HTML file
+        win.loadFile(path.join(__dirname, 'editor.html'));
+
+        // Set window title
+        if (options.title) {
+            win.setTitle(options.title);
+            // Force title update after load
+            win.webContents.on('did-finish-load', () => {
+                win.setTitle(options.title);
+            });
+        }
+
+        // Set initial content when window is ready
+        win.webContents.on('did-finish-load', () => {
+            if (options.textContent) {
+                win.webContents.send('set-content', options.textContent);
+            }
+        });
+
+        // Handle content changes
+        ipcMain.on('content-changed', (event, content) => {
+            const window = BrowserWindow.fromWebContents(event.sender);
+            if (window) {
+                // Store the updated content
+                this.editorWindows.set(window.id, content);
+            }
+        });
+
+        // Store window reference
+        this.editorWindows.set(win.id, options.textContent || '');
+
+        // Clean up when window is closed
+        win.on('closed', () => {
+            this.editorWindows.delete(win.id);
+        });
+
+        return win;
+    }
+
     // 关闭插件窗口
     closeWindow(pluginId) {
         const win = this.pluginWindows.get(pluginId);
@@ -55,6 +110,11 @@ class PluginAPI {
     // 获取插件窗口
     getWindow(pluginId) {
         return this.pluginWindows.get(pluginId);
+    }
+
+    // Get the content of a specific editor window
+    getEditorWindowContent(windowId) {
+        return this.editorWindows.get(windowId);
     }
 
     registerCommand(pluginContext, cmdId, action) {

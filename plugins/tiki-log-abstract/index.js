@@ -76,13 +76,26 @@ module.exports = function(pluginBasePath) {
                 const content = await fs.readFile(filePath, 'utf8');
                 const lines = content.split('\n');
                 
+                // Create a buffer to store results
+                let results = [];
+                
                 // Process each line to extract key information
                 lines.forEach((line, index) => {
                     const info = this.extractKeyInfo(line);
                     if (info) {
-                        console.log(`Line ${index + 1}: ${info.key} = ${info.value}`);
+                        results.push(`Line ${index + 1}: ${info.key} = ${info.value}`);
                     }
                 });
+
+                // Create editor window with results
+                const resultText = results.join('\n');
+                this.api.createEditorWindow({
+                    title: 'Log Analysis Results',
+                    textContent: resultText,
+                    width: 800,
+                    height: 600
+                });
+
             } catch (err) {
                 console.error('Error processing file:', err);
             }
