@@ -1,6 +1,7 @@
 const { BrowserWindow } = require('electron');
 const path = require('path');
 const fs = require('fs').promises;
+const { ipcMain } = require('electron');
 
 class Disposable {
     constructor(disposeAction) {
@@ -96,6 +97,14 @@ class PluginAPI {
 
         pluginContext.disposables.push(disposable);
         return disposable;
+    }
+
+    getCurrentFilePath() {
+        // Get the current file path directly from the main process
+        const mainWindow = BrowserWindow.getAllWindows()[0];
+        if (!mainWindow) return null;
+        
+        return mainWindow.currentFilePath;
     }
 }
 

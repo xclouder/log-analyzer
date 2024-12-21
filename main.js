@@ -160,6 +160,7 @@ ipcMain.handle('file:read', async (event, filePath) => {
         
         currentLogContent = content;
         currentFilePath = filePath;
+        mainWindow.currentFilePath = filePath;
         updateWindowTitle(filePath);
         log('File read:', filePath);
         return currentLogContent;
@@ -204,6 +205,8 @@ ipcMain.handle('file:reload', async () => {
             const processedContent = await pluginManager.processFileContent(processedPath, content);
             
             currentLogContent = processedContent;
+            currentFilePath = processedPath;
+            mainWindow.currentFilePath = processedPath;
             updateWindowTitle(processedPath);
             log('File reloaded:', processedPath);
             return {
@@ -675,6 +678,7 @@ async function doOpenFile(filePath) {
         
         currentLogContent = processedContent;
         currentFilePath = processedPath;
+        mainWindow.currentFilePath = processedPath;
         updateWindowTitle(processedPath);
         log('File opened:', processedPath);
         return {
@@ -683,6 +687,49 @@ async function doOpenFile(filePath) {
         };
     } catch (err) {
         logError('Error reading file:', err);
+        return null;
+    }
+}
+
+ipcMain.handle('open-file', async (event, filePath) => {
+    return await openFile(filePath);
+});
+
+ipcMain.handle('get-current-file-path', () => {
+    return currentFilePath;
+});
+
+ipcMain.handle('dialog-open-file', async () => {
+    const result = await dialog.showOpenDialog(mainWindow, {
+        properties: ['openFile'],
+        filters: [
+            { name: 'Log Files', extensions: ['log', 'txt'] },
+            { name: 'All Files', extensions: ['*'] }
+        ]
+    });
+
+    if (!result.canceled && result.filePaths.length > 0) {
+        const filePath = result.filePaths[0];
+
+        return await doOpenFile(filePath);
+    }
+    return null;
+});
+
+async function openFile(filePath) {
+    try {
+        const content = await fs.readFile(filePath, 'utf8');
+        currentLogContent = content;
+        currentFilePath = filePath;
+        mainWindow.currentFilePath = filePath;
+        updateWindowTitle(filePath);
+        log('File opened:', filePath);
+        return {
+            content,
+            filePath
+        };
+    } catch (err) {
+        console.error('Error reading file:', err);
         return null;
     }
 }

@@ -47,5 +47,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
     },
     getCommands: async () => {
         return await ipcRenderer.invoke('command:list');
-    }
+    },
+    getCurrentFilePath: () => ipcRenderer.invoke('get-current-file-path'),
 });
