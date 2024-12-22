@@ -31,4 +31,22 @@ contextBridge.exposeInMainWorld('electronAPI', {
         installPlugin: (zipPath) => ipcRenderer.invoke('plugin:install', zipPath),
         uninstallPlugin: (pluginName) => ipcRenderer.invoke('plugin:uninstall', pluginName)
     },
+    // Command Palette APIs
+    onCommandRegister: (callback) => {
+        ipcRenderer.on('command:register', callback);
+    },
+    onCommandUnregister: (callback) => {
+        ipcRenderer.on('command:unregister', callback);
+    },
+    executeCommand: async (cmdId) => {
+        return await ipcRenderer.invoke('command:execute', cmdId);
+    },
+    // 新增：获取命令列表
+    searchCommands: async (query) => {
+        return await ipcRenderer.invoke('command:search', query);
+    },
+    getCommands: async () => {
+        return await ipcRenderer.invoke('command:list');
+    },
+    getCurrentFilePath: () => ipcRenderer.invoke('get-current-file-path'),
 });

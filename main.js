@@ -3,17 +3,19 @@ const { autoUpdater } = require('electron-updater');
 const path = require('path');
 const fs = require('fs').promises;
 const PluginManager = require('./plugin-manager');
-
-// 自动更新配置
-autoUpdater.autoDownload = false;
-autoUpdater.autoInstallOnAppQuit = true;
+const {CommandManager} = require('./command-manager');
 
 let mainWindow;
 let pluginManager;
 let pluginManagerWindow = null;
+let commandManager;
 let currentLogContent = '';
 let currentFilePath = '';
 let isLoggingEnabled = false;
+
+// 自动更新配置
+autoUpdater.autoDownload = false;
+autoUpdater.autoInstallOnAppQuit = true;
 
 // 日志控制函数
 function log(...args) {
@@ -58,19 +60,41 @@ function createWindow() {
     
     // 检查更新
     checkForUpdates();
+
+    // 初始化命令管理器
+    commandManager = new CommandManager();
+
+    // 设置命令相关的 IPC 处理器
+    setupCommandIPC();
+
+    // 初始化插件管理器
+    pluginManager = new PluginManager(mainWindow, commandManager);
+
+    // 加载插件
+    pluginManager.loadPlugins().then(() => {
+        console.log('Plugins loaded finished');
+    });
+}
+
+function setupCommandIPC() {
+    // 注册命令的 IPC 处理器
+    ipcMain.handle('command:search', async (event, query) => {
+        return commandManager.searchCommands(query);
+    });
+
+    ipcMain.handle('command:list', async () => {
+        return commandManager.getAllCommands();
+    });
+
+    ipcMain.handle('command:execute', async (event, cmdId) => {
+        return commandManager.executeCommand(cmdId);
+    });
 }
 
 app.whenReady().then(async () => {
     try {
-        // 初始化插件管理器
-        pluginManager = new PluginManager();
-
         // 创建主窗口
         createWindow();
-
-        // 加载插件
-        await pluginManager.loadPlugins();
-        console.log('Plugins loaded finished');
 
         app.on('activate', function () {
             if (BrowserWindow.getAllWindows().length === 0) createWindow();
@@ -136,6 +160,7 @@ ipcMain.handle('file:read', async (event, filePath) => {
         
         currentLogContent = content;
         currentFilePath = filePath;
+        mainWindow.currentFilePath = filePath;
         updateWindowTitle(filePath);
         log('File read:', filePath);
         return currentLogContent;
@@ -180,6 +205,8 @@ ipcMain.handle('file:reload', async () => {
             const processedContent = await pluginManager.processFileContent(processedPath, content);
             
             currentLogContent = processedContent;
+            currentFilePath = processedPath;
+            mainWindow.currentFilePath = processedPath;
             updateWindowTitle(processedPath);
             log('File reloaded:', processedPath);
             return {
@@ -230,7 +257,7 @@ ipcMain.handle('file:show-in-folder', async () => {
 
 // 处理打开用户插件目录的请求
 ipcMain.on('open-user-plugins-dir', async () => {
-    const pluginManager = new PluginManager(mainWindow);
+    const pluginManager = new PluginManager(mainWindow, commandManager);
     await pluginManager.initializePluginDirs();
     shell.openPath(pluginManager.userPluginsDir);
 });
@@ -651,6 +678,7 @@ async function doOpenFile(filePath) {
         
         currentLogContent = processedContent;
         currentFilePath = processedPath;
+        mainWindow.currentFilePath = processedPath;
         updateWindowTitle(processedPath);
         log('File opened:', processedPath);
         return {
@@ -659,6 +687,49 @@ async function doOpenFile(filePath) {
         };
     } catch (err) {
         logError('Error reading file:', err);
+        return null;
+    }
+}
+
+ipcMain.handle('open-file', async (event, filePath) => {
+    return await openFile(filePath);
+});
+
+ipcMain.handle('get-current-file-path', () => {
+    return currentFilePath;
+});
+
+ipcMain.handle('dialog-open-file', async () => {
+    const result = await dialog.showOpenDialog(mainWindow, {
+        properties: ['openFile'],
+        filters: [
+            { name: 'Log Files', extensions: ['log', 'txt'] },
+            { name: 'All Files', extensions: ['*'] }
+        ]
+    });
+
+    if (!result.canceled && result.filePaths.length > 0) {
+        const filePath = result.filePaths[0];
+
+        return await doOpenFile(filePath);
+    }
+    return null;
+});
+
+async function openFile(filePath) {
+    try {
+        const content = await fs.readFile(filePath, 'utf8');
+        currentLogContent = content;
+        currentFilePath = filePath;
+        mainWindow.currentFilePath = filePath;
+        updateWindowTitle(filePath);
+        log('File opened:', filePath);
+        return {
+            content,
+            filePath
+        };
+    } catch (err) {
+        console.error('Error reading file:', err);
         return null;
     }
 }
