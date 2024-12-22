@@ -5,10 +5,14 @@ const { ipcMain } = require('electron');
 
 class Disposable {
     constructor(disposeAction) {
+        this.disposed = false;
         this.disposeAction = disposeAction;
     }
     dispose() {
-        this.disposeAction();
+        if (!this.disposed && this.disposeAction) {
+            this.disposed = true;
+            this.disposeAction();
+        }
     }
 }
 
