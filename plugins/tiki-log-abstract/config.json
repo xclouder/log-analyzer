@@ -1,9 +1,22 @@
 {
-    "patterns": [
+    "ds-keyword": "[DSInitSystem],DSInitSystem enter",
+    "common-patterns":[
+        {
+            "regex": "LogLoad:\\s*LoadMap:\\s*([^?\\n]+)",
+            "key": "LoadMap"
+        }
+    ],
+    "cli-patterns": [
         {
             "regex": "LogLoad:\\s*LoadMap:\\s*([^?\\n]+)",
             "key": "LoadMap"
         },
+        {
+            "regex": "\\[MVVMLoginViewComponent\\],(AppVer:,\\d+\\.\\d+\\.\\d+\\.\\d+, resVer:,\\d+\\.\\d+\\.\\d+\\.\\d+, dsVer:,\\d+\\.\\d+\\.\\d+\\.\\d+)",
+            "key": "Version"
+        }
+    ],
+    "ds-patterns": [
         {
             "regex": "\\[MVVMLoginViewComponent\\],(AppVer:,\\d+\\.\\d+\\.\\d+\\.\\d+, resVer:,\\d+\\.\\d+\\.\\d+\\.\\d+, dsVer:,\\d+\\.\\d+\\.\\d+\\.\\d+)",
             "key": "Version"
