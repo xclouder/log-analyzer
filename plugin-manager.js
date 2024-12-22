@@ -21,7 +21,9 @@ class PluginManager {
             ? path.join(process.resourcesPath, 'plugins')
             : path.join(__dirname, 'plugins');
         this.userPluginsDir = path.join(app.getPath('userData'), 'plugins');
+        
         await fsPromises.mkdir(this.userPluginsDir, { recursive: true });
+        
         console.log('Plugin directories initialized:', {
             builtinPluginsDir: this.builtinPluginsDir,
             userPluginsDir: this.userPluginsDir
@@ -31,14 +33,18 @@ class PluginManager {
     async loadPlugins() {
         try {
             await this.initializePluginDirs();
+            
             console.log('Loading plugins from directories:', {
                 builtinPluginsDir: this.builtinPluginsDir,
                 userPluginsDir: this.userPluginsDir
             });
+            
             const pluginBasePath = path.resolve(__dirname, 'plugin-base.js');
+            
             if (this.builtinPluginsDir) {
                 await this.loadPluginsFromDir(this.builtinPluginsDir, true, pluginBasePath);
             }
+
             if (this.userPluginsDir) {
                 await this.loadPluginsFromDir(this.userPluginsDir, false, pluginBasePath);
             }
@@ -66,10 +72,12 @@ class PluginManager {
             if (!fs.existsSync(packageJsonPath)) {
                 throw new Error('package.json not found in plugin directory');
             }
+
             const packageJson = JSON.parse(await fsPromises.readFile(packageJsonPath, 'utf-8'));
             if (!this.validatePluginPackage(packageJson)) {
                 throw new Error('Invalid plugin package.json format');
             }
+
             const pluginBasePath = path.resolve(__dirname, 'plugin-base.js');
             const mainFile = path.join(pluginDir, packageJson.main);
             const PluginClass = require(mainFile)(pluginBasePath);
@@ -80,12 +88,15 @@ class PluginManager {
                 isBuiltin,
                 path: pluginDir
             };
+            
             pluginCtx.metadata = meta;
+            
             this.plugins.set(packageJson.name, {
                 instance: plugin,
                 metadata: meta,
                 context: pluginCtx,
             });
+
             await plugin.onActivate(pluginCtx);
             console.log(`Plugin loaded successfully: ${packageJson.name}`);
         } catch (err) {
