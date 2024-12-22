@@ -4,6 +4,12 @@ const path = require('path');
 const fs = require('fs').promises;
 const PluginManager = require('./plugin-manager');
 const {CommandManager} = require('./command-manager');
+const log4js = require('log4js');
+const logConfig = require('./log4js-config');
+
+// 初始化日志配置
+log4js.configure(logConfig);
+const logger = log4js.getLogger('Main');
 
 let mainWindow;
 let pluginManager;
@@ -93,6 +99,7 @@ function setupCommandIPC() {
 
 app.whenReady().then(async () => {
     try {
+        logger.info('Application starting...');
         // 创建主窗口
         createWindow();
 
@@ -104,7 +111,9 @@ app.whenReady().then(async () => {
     }
 });
 
-app.on('window-all-closed', function () {
+app.on('window-all-closed', () => {
+    logger.info('All windows closed, shutting down...');
+    log4js.shutdown();
     if (process.platform !== 'darwin') app.quit();
 });
 
@@ -417,6 +426,7 @@ ipcMain.handle('filter:save-config', async (event, config, filePath) => {
 
 // 创建应用程序菜单
 function createMenu() {
+    const isMac = process.platform === 'darwin';
     const template = [
         {
             label: '文件',
@@ -470,6 +480,14 @@ function createMenu() {
                     label: '在系统文件夹中显示',
                     click: async () => {
                         mainWindow.webContents.send('menu:show-in-folder');
+                    }
+                },
+                { type: 'separator' },
+                {
+                    label: '打开日志目录',
+                    click: async () => {
+                        const logPath = path.join(app.getPath('userData'), 'logs');
+                        shell.openPath(logPath);
                     }
                 },
                 { type: 'separator' },
@@ -562,7 +580,7 @@ function createMenu() {
                         const version = app.getVersion();
                         const message = `LogAnalyzer v${version}\n\n` +
                             '一个强大的日志分析工具\n\n' +
-                            '© 2024 LogAnalyzer Team\n' +
+                            ' 2024 LogAnalyzer Team\n' +
                             '保留所有权利';
                         
                         await dialog.showMessageBox({

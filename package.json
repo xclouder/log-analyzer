@@ -18,6 +18,7 @@
   "dependencies": {
     "adm-zip": "^0.5.10",
     "electron-updater": "^6.1.4",
+    "log4js": "^6.9.1",
     "monaco-editor": "^0.40.0"
   },
   "devDependencies": {

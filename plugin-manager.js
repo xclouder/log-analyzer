@@ -4,6 +4,9 @@ const path = require('path');
 const { PluginAPI, Disposable } = require('./plugin-api');
 const { PluginContext } = require('./plugin-context');
 const AdmZip = require('adm-zip');
+const { getLogger } = require('./log-util');
+
+const logger = getLogger('PluginManager');
 
 class PluginManager {
     constructor(mainWindow, commandManager) {
@@ -24,7 +27,7 @@ class PluginManager {
         
         await fsPromises.mkdir(this.userPluginsDir, { recursive: true });
         
-        console.log('Plugin directories initialized:', {
+        logger.log('Plugin directories initialized:', {
             builtinPluginsDir: this.builtinPluginsDir,
             userPluginsDir: this.userPluginsDir,
             userData: app.getPath('userData'),
@@ -37,7 +40,7 @@ class PluginManager {
         try {
             await this.initializePluginDirs();
             
-            console.log('Loading plugins from directories:', {
+            logger.log('Loading plugins from directories:', {
                 builtinPluginsDir: this.builtinPluginsDir,
                 userPluginsDir: this.userPluginsDir
             });
@@ -52,39 +55,39 @@ class PluginManager {
                 await this.loadPluginsFromDir(this.userPluginsDir, false, pluginBasePath);
             }
         } catch (error) {
-            console.error('Failed to load plugins:', error);
+            logger.error('Failed to load plugins:', error);
         }
     }
 
     async loadPluginsFromDir(directory, isBuiltin, pluginBasePath) {
         try {
-            console.log(`Scanning directory for plugins: ${directory}`);
+            logger.log(`Scanning directory for plugins: ${directory}`);
             if (!fs.existsSync(directory)) {
-                console.error(`Plugin directory does not exist: ${directory}`);
+                logger.error(`Plugin directory does not exist: ${directory}`);
                 return;
             }
             
             const pluginFiles = await fsPromises.readdir(directory);
-            console.log(`Found ${pluginFiles.length} items in ${directory}`);
+            logger.log(`Found ${pluginFiles.length} items in ${directory}`);
             
             for (const file of pluginFiles) {
                 const pluginDir = path.join(directory, file);
                 const stats = fs.statSync(pluginDir);
                 if (!stats.isDirectory()) {
-                    console.log(`Skipping non-directory: ${pluginDir}`);
+                    logger.log(`Skipping non-directory: ${pluginDir}`);
                     continue;
                 }
-                console.log(`Found plugin directory: ${pluginDir}`);
+                logger.log(`Found plugin directory: ${pluginDir}`);
                 await this.loadPlugin(pluginDir, isBuiltin);
             }
         } catch (error) {
-            console.error(`Error loading plugins from directory ${directory}:`, error);
+            logger.error(`Error loading plugins from directory ${directory}:`, error);
         }
     }
 
     async loadPlugin(pluginDir, isBuiltin) {
         try {
-            console.log(`Loading plugin from directory: ${pluginDir}`);
+            logger.log(`Loading plugin from directory: ${pluginDir}`);
             const packageJsonPath = path.join(pluginDir, 'package.json');
             
             if (!fs.existsSync(packageJsonPath)) {
@@ -92,30 +95,30 @@ class PluginManager {
             }
 
             const packageJson = JSON.parse(await fsPromises.readFile(packageJsonPath, 'utf-8'));
-            console.log(`Loading plugin: ${packageJson.name}`);
+            logger.log(`Loading plugin: ${packageJson.name}`);
             
             if (!this.validatePluginPackage(packageJson)) {
                 throw new Error(`Invalid plugin package.json format for: ${packageJson.name}`);
             }
 
             const pluginBasePath = path.resolve(__dirname, 'plugin-base.js');
-            console.log(`Plugin base path: ${pluginBasePath}`);
+            logger.log(`Plugin base path: ${pluginBasePath}`);
             
             const mainFile = path.join(pluginDir, packageJson.main);
-            console.log(`Plugin main file: ${mainFile}`);
+            logger.log(`Plugin main file: ${mainFile}`);
             
             if (!fs.existsSync(mainFile)) {
                 throw new Error(`Plugin main file not found: ${mainFile}`);
             }
 
-            console.log(`Loading plugin class from: ${mainFile}`);
+            logger.log(`Loading plugin class from: ${mainFile}`);
             const PluginClass = require(mainFile)(pluginBasePath);
             
             if (!PluginClass) {
                 throw new Error(`Failed to load plugin class from: ${mainFile}`);
             }
 
-            console.log(`Initializing plugin instance: ${packageJson.name}`);
+            logger.log(`Initializing plugin instance: ${packageJson.name}`);
             const plugin = new PluginClass(this.api);
             const pluginCtx = new PluginContext(plugin, this.api);
             const meta = {
@@ -132,11 +135,11 @@ class PluginManager {
                 context: pluginCtx,
             });
 
-            console.log(`Activating plugin: ${packageJson.name}`);
+            logger.log(`Activating plugin: ${packageJson.name}`);
             await plugin.onActivate(pluginCtx);
-            console.log(`Plugin loaded successfully: ${packageJson.name}`);
+            logger.log(`Plugin loaded successfully: ${packageJson.name}`);
         } catch (err) {
-            console.error(`Failed to load plugin from ${pluginDir}:`, err);
+            logger.error(`Failed to load plugin from ${pluginDir}:`, err);
             throw err; // 重新抛出错误以便上层捕获
         }
     }
@@ -164,14 +167,14 @@ class PluginManager {
     async installPlugin(zipPath) {
         let tempDir = null;
         try {
-            console.log('Installing plugin from:', zipPath);
+            logger.log('Installing plugin from:', zipPath);
             if (!fs.existsSync(zipPath)) {
                 throw new Error(`Plugin file not found: ${zipPath}`);
             }
 
             const zip = new AdmZip(zipPath);
             tempDir = path.join(this.userPluginsDir, '_temp');
-            console.log('Extracting to temp directory:', tempDir);
+            logger.log('Extracting to temp directory:', tempDir);
 
             if (fs.existsSync(tempDir)) {
                 await fsPromises.rm(tempDir, { recursive: true });
@@ -181,15 +184,15 @@ class PluginManager {
             
             zip.extractAllTo(tempDir, true);
             const tempDirContents = await fsPromises.readdir(tempDir);
-            console.log('Extracted contents:', tempDirContents);
+            logger.log('Extracted contents:', tempDirContents);
             const packageJsonPath = path.join(tempDir, 'package.json');
-            console.log('Looking for package.json at:', packageJsonPath);
+            logger.log('Looking for package.json at:', packageJsonPath);
             if (!fs.existsSync(packageJsonPath)) {
                 throw new Error('package.json not found in plugin package');
             }
 
             const packageJson = JSON.parse(await fsPromises.readFile(packageJsonPath, 'utf8'));
-            console.log('Found package.json:', packageJson);
+            logger.log('Found package.json:', packageJson);
             if (!this.validatePluginPackage(packageJson)) {
                 throw new Error('Invalid plugin format');
             }
@@ -199,19 +202,19 @@ class PluginManager {
                 throw new Error('Plugin already exists');
             }
 
-            console.log('Moving plugin to:', targetDir);
+            logger.log('Moving plugin to:', targetDir);
             await fsPromises.rename(tempDir, targetDir);
             await this.loadPlugin(targetDir, false);
-            console.log('Plugin installation completed successfully');
+            logger.log('Plugin installation completed successfully');
             return { success: true, plugin: packageJson };
         } catch (err) {
-            console.error('Error during plugin installation:', err);
+            logger.error('Error during plugin installation:', err);
             if (tempDir && fs.existsSync(tempDir)) {
                 try {
                     await fsPromises.rm(tempDir, { recursive: true });
-                    console.log('Cleaned up temp directory');
+                    logger.log('Cleaned up temp directory');
                 } catch (cleanupErr) {
-                    console.error('Error cleaning up temp directory:', cleanupErr);
+                    logger.error('Error cleaning up temp directory:', cleanupErr);
                 }
             }
             throw err;
@@ -243,31 +246,31 @@ class PluginManager {
             try {
                 processedContent = await processor.processFile(filePath, processedContent);
             } catch (error) {
-                console.error(`Error processing file with plugin ${processor.id}:`, error);
+                logger.error(`Error processing file with plugin ${processor.id}:`, error);
             }
         }
         return processedContent;
     }
 
     async preProcessFilePath(filePath) {
-        console.log('[PluginManager] Starting preProcessFilePath for:', filePath);
+        logger.log('[PluginManager] Starting preProcessFilePath for:', filePath);
         let processedPath = filePath;
         for (const plugin of this.plugins.values()) {
-            console.log(`[PluginManager] Checking plugin ${plugin.id} for onPreOpenFile method`);
+            logger.log(`[PluginManager] Checking plugin ${plugin.id} for onPreOpenFile method`);
             if (typeof plugin.instance.onPreOpenFile === 'function') {
                 try {
-                    console.log(`[PluginManager] Calling onPreOpenFile for plugin ${plugin.id}`);
+                    logger.log(`[PluginManager] Calling onPreOpenFile for plugin ${plugin.id}`);
                     const newPath = await plugin.instance.onPreOpenFile(processedPath);
-                    console.log(`[PluginManager] Plugin ${plugin.id} returned path:`, newPath);
+                    logger.log(`[PluginManager] Plugin ${plugin.id} returned path:`, newPath);
                     if (newPath && typeof newPath === 'string') {
                         processedPath = newPath;
                     }
                 } catch (error) {
-                    console.error(`[PluginManager] Error in plugin ${plugin.id} while preprocessing file path:`, error);
+                    logger.error(`[PluginManager] Error in plugin ${plugin.id} while preprocessing file path:`, error);
                 }
             }
         }
-        console.log('[PluginManager] Final processed path:', processedPath);
+        logger.log('[PluginManager] Final processed path:', processedPath);
         return processedPath;
     }
 
