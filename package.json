@@ -6,6 +6,7 @@
   "scripts": {
     "start": "electron .",
     "build:portable": "electron-builder --win portable",
+    "build:nsis": "electron-builder --win nsis",
     "build:mac": "electron-builder --mac zip",
     "dist": "electron-builder --win nsis --publish always"
   },
