@@ -26,7 +26,10 @@ class PluginManager {
         
         console.log('Plugin directories initialized:', {
             builtinPluginsDir: this.builtinPluginsDir,
-            userPluginsDir: this.userPluginsDir
+            userPluginsDir: this.userPluginsDir,
+            userData: app.getPath('userData'),
+            resourcesPath: process.resourcesPath,
+            __dirname: __dirname
         });
     }
 
@@ -54,33 +57,65 @@ class PluginManager {
     }
 
     async loadPluginsFromDir(directory, isBuiltin, pluginBasePath) {
-        const pluginFiles = await fsPromises.readdir(directory);
-        for (const file of pluginFiles) {
-            const pluginDir = path.join(directory, file);
-            const stats = fs.statSync(pluginDir);
-            if (!stats.isDirectory()) {
-                continue;
+        try {
+            console.log(`Scanning directory for plugins: ${directory}`);
+            if (!fs.existsSync(directory)) {
+                console.error(`Plugin directory does not exist: ${directory}`);
+                return;
             }
-            await this.loadPlugin(pluginDir, isBuiltin);
+            
+            const pluginFiles = await fsPromises.readdir(directory);
+            console.log(`Found ${pluginFiles.length} items in ${directory}`);
+            
+            for (const file of pluginFiles) {
+                const pluginDir = path.join(directory, file);
+                const stats = fs.statSync(pluginDir);
+                if (!stats.isDirectory()) {
+                    console.log(`Skipping non-directory: ${pluginDir}`);
+                    continue;
+                }
+                console.log(`Found plugin directory: ${pluginDir}`);
+                await this.loadPlugin(pluginDir, isBuiltin);
+            }
+        } catch (error) {
+            console.error(`Error loading plugins from directory ${directory}:`, error);
         }
     }
 
     async loadPlugin(pluginDir, isBuiltin) {
         try {
-            console.log(`Loading plugin, dir: ${pluginDir}`);
+            console.log(`Loading plugin from directory: ${pluginDir}`);
             const packageJsonPath = path.join(pluginDir, 'package.json');
+            
             if (!fs.existsSync(packageJsonPath)) {
-                throw new Error('package.json not found in plugin directory');
+                throw new Error(`package.json not found in plugin directory: ${packageJsonPath}`);
             }
 
             const packageJson = JSON.parse(await fsPromises.readFile(packageJsonPath, 'utf-8'));
+            console.log(`Loading plugin: ${packageJson.name}`);
+            
             if (!this.validatePluginPackage(packageJson)) {
-                throw new Error('Invalid plugin package.json format');
+                throw new Error(`Invalid plugin package.json format for: ${packageJson.name}`);
             }
 
             const pluginBasePath = path.resolve(__dirname, 'plugin-base.js');
+            console.log(`Plugin base path: ${pluginBasePath}`);
+            
             const mainFile = path.join(pluginDir, packageJson.main);
+            console.log(`Plugin main file: ${mainFile}`);
+            
+            if (!fs.existsSync(mainFile)) {
+                throw new Error(`Plugin main file not found: ${mainFile}`);
+            }
+
+            console.log(`Loading plugin class from: ${mainFile}`);
             const PluginClass = require(mainFile)(pluginBasePath);
+            
+            if (!PluginClass) {
+                throw new Error(`Failed to load plugin class from: ${mainFile}`);
+            }
+
+            console.log(`Initializing plugin instance: ${packageJson.name}`);
             const plugin = new PluginClass(this.api);
             const pluginCtx = new PluginContext(plugin, this.api);
             const meta = {
@@ -97,10 +132,12 @@ class PluginManager {
                 context: pluginCtx,
             });
 
+            console.log(`Activating plugin: ${packageJson.name}`);
             await plugin.onActivate(pluginCtx);
             console.log(`Plugin loaded successfully: ${packageJson.name}`);
         } catch (err) {
             console.error(`Failed to load plugin from ${pluginDir}:`, err);
+            throw err; // 重新抛出错误以便上层捕获
         }
     }
 
