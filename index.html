@@ -75,6 +75,15 @@
             width: 4px;
             background: #333;
             cursor: col-resize;
+            transition: background-color 0.2s;
+        }
+
+        .divider:hover {
+            background: #666;
+        }
+
+        .editors-container {
+            user-select: none; /* 防止拖动时选中文本 */
         }
 
         .filter-container {
@@ -332,6 +341,7 @@
     <script src="command-palette.js"></script>
 
     <script src="node_modules/monaco-editor/min/vs/loader.js"></script>
+    <script src="devider.js"></script>
     <script>
         let editor, filteredEditor;
         let currentFilePath = null;
@@ -1108,6 +1118,7 @@
             filterToggle.classList.toggle('collapsed');
             filterSection.classList.toggle('collapsed');
         }
+
     </script>
 </body>
 
