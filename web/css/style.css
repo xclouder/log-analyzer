@@ -162,6 +162,18 @@ nav {
     display: block;
 }
 
+/* 教程区域 */
+.tutorial {
+    padding: 5rem 2rem;
+    background: var(--light-background);
+}
+
+.tutorial h2 {
+    text-align: center;
+    margin-bottom: 3rem;
+    font-size: 2.5rem;
+}
+
 /* 下载区域 */
 .download {
     padding: 5rem 2rem;

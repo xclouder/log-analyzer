@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LogAnalyzer - 强大的日志分析工具</title>
+    <title>LogAnalyzer - 日志分析工具</title>
     <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -11,69 +11,63 @@
         <nav>
             <div class="logo">LogAnalyzer</div>
             <div class="nav-links">
-                <a href="#features">功能特点</a>
-                <a href="#demo">演示</a>
+                <a href="#features">功能</a>
                 <a href="#download">下载</a>
             </div>
         </nav>
         <div class="hero-content">
             <h1>LogAnalyzer</h1>
-            <p class="subtitle">高效、便携的日志分析工具</p>
-            <a href="#download" class="cta-button">立即下载</a>
+            <p class="subtitle">轻量级的日志分析工具</p>
+            <a href="#download" class="cta-button">下载</a>
         </div>
     </header>
 
     <main>
         <section id="features" class="features">
-            <h2>功能特点</h2>
+            <h2>主要功能</h2>
             <div class="feature-grid">
                 <div class="feature-card">
                     <div class="feature-icon">🔍</div>
-                    <h3>强大的过滤功能</h3>
-                    <p>支持文本匹配、正则表达式和行号范围过滤，轻松定位关键信息</p>
+                    <h3>文本过滤</h3>
+                    <p>支持关键词搜索和正则表达式匹配</p>
                 </div>
                 <div class="feature-card">
-                    <div class="feature-icon">💡</div>
-                    <h3>智能高亮</h3>
-                    <p>自定义高亮规则，重要信息一目了然</p>
-                </div>
-                <div class="feature-card">
-                    <div class="feature-icon">📱</div>
-                    <h3>便携无忧</h3>
-                    <p>单文件exe，无需安装，随时随地使用</p>
+                    <div class="feature-icon">📊</div>
+                    <h3>插件系统</h3>
+                    <p>可通过插件扩展分析功能</p>
                 </div>
                 <div class="feature-card">
                     <div class="feature-icon">⚡</div>
-                    <h3>高性能处理</h3>
-                    <p>优化的性能设计，轻松处理大型日志文件</p>
+                    <h3>命令面板</h3>
+                    <p>快捷键操作，提高使用效率。可通过插件扩展自定义命令</p>
                 </div>
             </div>
         </section>
 
-        <section id="demo" class="demo">
-            <h2>功能演示</h2>
+        <section id="tutorial" class="tutorial">
+            <h2>使用教程</h2>
             <div class="video-container">
                 <video controls>
-                    <source src="videos/introduce.mp4" type="video/mp4">
+                    <source src="video/log-analyzer.mp4" type="video/mp4">
                     您的浏览器不支持视频播放。
                 </video>
             </div>
         </section>
 
         <section id="download" class="download">
-            <h2>下载使用</h2>
+            <h2>下载</h2>
             <div class="download-card">
                 <div class="download-content">
-                    <h3>LogAnalyzer 便携版</h3>
+                    <h3>LogAnalyzer</h3>
                     <ul class="features-list">
-                        <li>✓ 单文件，无需安装</li>
-                        <li>✓ 支持大文件处理</li>
-                        <li>✓ 自定义过滤规则</li>
-                        <li>✓ 配置导入导出</li>
+                        <li>✓ 单文件程序</li>
+                        <li>✓ 基础文本过滤</li>
+                        <li>✓ 插件扩展支持</li>
+                        <li>✓ 命令面板操作</li>
                     </ul>
-                    <a href="downloads/LogAnalyzer-Portable.exe" class="download-button">
-                        下载 Windows 便携版
-                        <span class="version">v1.0.0</span>
+                    <a href="downloads/LogAnalyzer.exe" class="download-button">
+                        下载 Windows 版本
+                        <span class="version">v0.1.0</span>
                     </a>
                 </div>
             </div>
@@ -84,16 +78,11 @@
         <div class="footer-content">
             <div class="footer-section">
                 <h4>关于</h4>
-                <p>LogAnalyzer 是一款专注于提升日志分析效率的工具，帮助开发者快速定位问题。</p>
-            </div>
-            <div class="footer-section">
-                <h4>联系我们</h4>
-                <p>如有问题或建议，欢迎联系我们</p>
-                <a href="mailto:support@loganalyzer.com">support@loganalyzer.com</a>
+                <p>LogAnalyzer 是一个开源的日志分析工具，致力于提供基础且实用的日志分析功能。</p>
             </div>
         </div>
         <div class="footer-bottom">
-            <p>&copy; 2024 LogAnalyzer. All rights reserved.</p>
+            <p>&copy; 2024 LogAnalyzer</p>
         </div>
     </footer>
     <div id="commandOverlay" class="command-overlay"></div>
