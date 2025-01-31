@@ -7,10 +7,25 @@ const questions = [
     {
         type: 'input',
         name: 'name',
-        message: 'Plugin name:',
+        message: 'Plugin name (kebab-case):',
         validate: input => {
-            if (/^[a-zA-Z0-9-_]+$/.test(input)) return true;
-            return 'Plugin name may only include letters, numbers, underscores and hashes';
+            if (/^[a-z0-9-]+$/.test(input)) return true;
+            return 'Plugin name must be in kebab-case (lowercase letters, numbers, and hyphens only)';
+        }
+    },
+    {
+        type: 'input',
+        name: 'title',
+        message: 'Plugin display title:',
+    },
+    {
+        type: 'input',
+        name: 'className',
+        message: 'Plugin class name (PascalCase):',
+        default: answers => answers.name.split('-').map(part => part.charAt(0).toUpperCase() + part.slice(1)).join(''),
+        validate: input => {
+            if (/^[A-Z][a-zA-Z0-9]*$/.test(input)) return true;
+            return 'Class name must be in PascalCase';
         }
     },
     {
@@ -50,74 +65,114 @@ const questions = [
                 checked: false
             }
         ]
+    },
+    {
+        type: 'input',
+        name: 'fileTypes',
+        message: 'Supported file types (comma-separated, e.g., .log,.txt):',
+        filter: input => input.split(',').map(type => type.trim()).filter(type => type)
     }
 ];
 
 async function createPluginStructure(answers) {
     const pluginDir = path.join(process.cwd(), answers.name);
     
-    // Create plugin directory
+    // Create plugin directory and assets directory
     await fs.ensureDir(pluginDir);
+    await fs.ensureDir(path.join(pluginDir, 'assets'));
     
     // Create package.json
     const packageJson = {
         name: answers.name,
         version: answers.version,
         description: answers.description,
+        title: answers.title || answers.name,
         author: answers.author,
+        license: "MIT",
         main: 'index.js',
-        logAnalyzerPlugin: {
-            features: answers.features
+        engines: {
+            loganalyzer: "^1.0.0"
+        },
+        contributes: {
+            fileTypes: answers.fileTypes || []
         }
     };
     
     await fs.writeJson(path.join(pluginDir, 'package.json'), packageJson, { spaces: 2 });
     
     // Create index.js with selected features
-    let pluginCode = `class ${answers.name}Plugin {
-    constructor(api) {
-        this.api = api;
-    }
+    let pluginCode = `const path = require('path');
+
+module.exports = function(pluginBasePath) {
+    const Plugin = require(pluginBasePath);
+
+    class ${answers.className || answers.name}Plugin extends Plugin {
+        constructor(api) {
+            super(api);
+            this.api = api;
+        }
 `;
 
     if (answers.features.includes('fileContent')) {
         pluginCode += `
-    // Process file content
-    async processContent(content) {
-        // Add your content processing logic here
-        return content;
-    }
+        /**
+         * Process file content before display
+         * @param {string} content - The content of the file
+         * @returns {Promise<string>} - The processed content
+         */
+        async processContent(content) {
+            // Add your content processing logic here
+            return content;
+        }
+
+        /**
+         * Called before opening a file
+         * @param {string} filePath - Path to the file being opened
+         * @returns {Promise<string>} - The path to the file that should be opened
+         */
+        async onPreOpenFile(filePath) {
+            // Add your pre-open file logic here
+            return filePath;
+        }
 `;
     }
 
     if (answers.features.includes('filePath')) {
         pluginCode += `
-    // Process file path
-    async processPath(filePath) {
-        // Add your path processing logic here
-        return filePath;
-    }
+        /**
+         * Process file path
+         * @param {string} filePath - The path of the file
+         * @returns {Promise<string>} - The processed file path
+         */
+        async processPath(filePath) {
+            // Add your path processing logic here
+            return filePath;
+        }
 `;
     }
 
     if (answers.features.includes('window')) {
         pluginCode += `
-    // Create custom window
-    async createWindow() {
-        const window = await this.api.createWindow({
-            width: 800,
-            height: 600,
-            title: '${answers.name}'
-        });
-        
-        // Add your window initialization logic here
-    }
+        /**
+         * Create custom window
+         * @returns {Promise<void>}
+         */
+        async createWindow() {
+            const window = await this.api.createWindow({
+                width: 800,
+                height: 600,
+                title: '${answers.title || answers.name}'
+            });
+            
+            // Add your window initialization logic here
+        }
 `;
     }
 
-    pluginCode += `}
+    pluginCode += `    }
 
-module.exports = ${answers.name}Plugin;
+    return ${answers.className || answers.name}Plugin;
+};
 `;
 
     await fs.writeFile(path.join(pluginDir, 'index.js'), pluginCode);
@@ -131,12 +186,16 @@ ${answers.description}
 
 ${answers.features.map(feature => `- ${feature}`).join('\n')}
 
+## Supported File Types
+
+${(answers.fileTypes || []).map(type => `- ${type}`).join('\n')}
+
 ## Installation
 
 1. Download the plugin zip file
 2. Open Log Analyzer
 3. Go to Plugin Manager
-4. Drag and drop the zip file to install
+4. Install the plugin
 
 ## Usage
 
@@ -145,6 +204,10 @@ ${answers.features.map(feature => `- ${feature}`).join('\n')}
 ## Author
 
 ${answers.author}
+
+## License
+
+MIT
 `;
 
     await fs.writeFile(path.join(pluginDir, 'README.md'), readme);
@@ -158,7 +221,7 @@ async function init() {
         
         await createPluginStructure(answers);
         
-        console.log(chalk.green('\nPlugin created successfully! 🎉'));
+        console.log(chalk.green('\nPlugin created successfully! \u2705'));
         console.log(chalk.yellow('\nNext steps:'));
         console.log(`1. cd ${answers.name}`);
         console.log('2. Implement your plugin logic in index.js');
