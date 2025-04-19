@@ -35,6 +35,13 @@ module.exports = function(pluginBasePath) {
             if (result) {
                 console.log(`Input url: ${result}`);
             }
+
+            const items = ['a', 'b', 'c'];
+            const selected = await this.api.showQuickPick(items, {title: "Select an item:"});
+            
+            if (selected) {
+                console.log(`Selected: ${selected}`);
+            }
         }
     }
 

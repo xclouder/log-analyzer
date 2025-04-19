@@ -77,3 +77,108 @@ window.createInputBox = function(options, requestId) {
 window.electronAPI.ipcOn('plugin-show-inputbox', (event, { options, requestId }) => {
     window.createInputBox(options, requestId);
 });
+
+// 动态创建 QuickPick 选择器并通过 IPC 发送结果
+window.createQuickPick = function(items, options, requestId) {
+    // 防止重复创建
+    if (document.getElementById('electron-plugin-quickpick-mask')) return;
+
+    // 遮罩
+    const mask = document.createElement('div');
+    mask.id = 'electron-plugin-quickpick-mask';
+    mask.style.position = 'fixed';
+    mask.style.top = 0;
+    mask.style.left = 0;
+    mask.style.width = '100vw';
+    mask.style.height = '100vh';
+    mask.style.background = 'rgba(0,0,0,0.35)';
+    mask.style.zIndex = 9998;
+    mask.style.display = 'block';
+    document.body.appendChild(mask);
+
+    // 选择器容器
+    const container = document.createElement('div');
+    container.id = 'electron-plugin-quickpick';
+    container.style.background = '#444';
+    container.style.color = '#fff';
+    container.style.border = 'none';
+    container.style.outline = 'none';
+    container.style.borderRadius = '6px';
+    container.style.boxShadow = '0 8px 32px 0 rgba(0,0,0,0.32)';
+    container.style.fontSize = '16px';
+    container.style.fontFamily = 'inherit';
+    container.style.width = '320px';
+    container.style.maxHeight = '400px';
+    container.style.overflowY = 'auto';
+    container.style.padding = '8px 0';
+    container.style.zIndex = 9999;
+    container.style.position = 'fixed';
+    container.style.left = '50%';
+    container.style.top = '80px';
+    container.style.transform = 'translateX(-50%)';
+    mask.appendChild(container);
+
+    // 如果有标题，添加标题
+    if (options && options.title) {
+        const title = document.createElement('div');
+        title.textContent = options.title;
+        title.style.padding = '8px 16px';
+        title.style.fontWeight = 'bold';
+        title.style.borderBottom = '1px solid #555';
+        container.appendChild(title);
+    }
+
+    // 如果有 placeholder，添加占位符提示
+    if (options && options.placeHolder) {
+        const placeholder = document.createElement('div');
+        placeholder.textContent = options.placeHolder;
+        placeholder.style.padding = '8px 16px';
+        placeholder.style.color = '#bbb';
+        placeholder.style.fontStyle = 'italic';
+        container.appendChild(placeholder);
+    }
+
+    // 创建选项列表
+    items.forEach((item, index) => {
+        const option = document.createElement('div');
+        option.textContent = typeof item === 'string' ? item : item.label || item;
+        option.style.padding = '8px 16px';
+        option.style.cursor = 'pointer';
+        option.style.transition = 'background 0.2s';
+        option.onmouseover = function() {
+            option.style.background = '#555';
+        };
+        option.onmouseout = function() {
+            option.style.background = 'transparent';
+        };
+        option.onclick = function() {
+            window.electronAPI.ipcSend('plugin-quickpick-response', { requestId, value: item });
+            cleanup();
+        };
+        container.appendChild(option);
+    });
+
+    // 键盘事件处理
+    function onKeyDown(e) {
+        if (e.key === 'Escape') {
+            window.electronAPI.ipcSend('plugin-quickpick-response', { requestId, value: null });
+            cleanup();
+        }
+    }
+    window.addEventListener('keydown', onKeyDown, true);
+
+    // 清理函数
+    function cleanup() {
+        if (container.parentNode) container.parentNode.removeChild(container);
+        if (mask.parentNode) mask.parentNode.removeChild(mask);
+        window.removeEventListener('keydown', onKeyDown, true);
+    }
+
+    // 设置焦点（容器本身不焦点，依靠键盘事件）
+    container.focus();
+};
+
+// 监听主进程请求弹出 QuickPick
+window.electronAPI.ipcOn('plugin-show-quickpick', (event, { items, options, requestId }) => {
+    window.createQuickPick(items, options, requestId);
+});

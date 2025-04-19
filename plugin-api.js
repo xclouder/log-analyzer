@@ -192,6 +192,30 @@ class PluginAPI {
             console.log(`show-inputbox`);
         });
     }
+
+    /**
+     * 
+     * @param {string[]} items 
+     * @param {QuickPickOptions} options 
+     * @returns 
+     */
+    async showQuickPick(items, options) {
+        const { BrowserWindow, ipcMain } = require('electron');
+        const mainWindow = BrowserWindow.getAllWindows()[0];
+
+        return new Promise((resolve) => {
+            const requestId = Date.now() + Math.random();
+            // 只监听一次
+            ipcMain.once('plugin-quickpick-response', (event, { requestId: respId, value }) => {
+                if (respId === requestId) {
+                    resolve(value); // value为string或null
+                }
+            });
+            mainWindow.webContents.send('plugin-show-quickpick', { items, options, requestId });
+
+            console.log(`show-quickpick`);
+        });
+    }
 }
 
 module.exports = { PluginAPI, Disposable };
