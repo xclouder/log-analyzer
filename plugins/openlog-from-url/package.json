@@ -1,0 +1,23 @@
+{
+  "name": "openlog-from-url",
+  "version": "1.0.0",
+  "description": "quick open log from url(download a zip file) and select a file to open",
+  "title": "OpenLogFromUrl",
+  "author": "loganalyzer",
+  "license": "MIT",
+  "main": "index.js",
+  "engines": {
+    "loganalyzer": "^1.0.0"
+  },
+  "contributes": {
+    "commands": [
+            {
+                "command": "loganalyzer.openLogFromUrl",
+                "title": "Open log from url"
+            }
+        ],
+    "fileTypes": [
+      ".zip"
+    ]
+  }
+}

@@ -281,6 +281,14 @@ ipcMain.on('plugin:message', (event, data) => {
 });
 
 // 插件管理相关 IPC 处理
+
+// 插件API：弹出输入框
+const { PluginAPI } = require('./plugin-api');
+const pluginAPI = new PluginAPI(mainWindow);
+ipcMain.handle('plugin:showInputBox', async (event, options) => {
+    return await pluginAPI.showInputBox(options);
+});
+
 ipcMain.handle('plugin:list', async () => {
     try {
         return pluginManager.getPlugins();

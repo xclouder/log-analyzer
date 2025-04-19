@@ -170,6 +170,28 @@ class PluginAPI {
         
         return mainWindow.currentFilePath;
     }
+
+    /**
+     * @param {InputBoxOptions} options
+     * @returns {Promise<string>}
+     */
+    async showInputBox(options) {
+        const { BrowserWindow, ipcMain } = require('electron');
+        const mainWindow = BrowserWindow.getAllWindows()[0];
+
+        return new Promise((resolve) => {
+            const requestId = Date.now() + Math.random();
+            // 只监听一次
+            ipcMain.once('plugin-inputbox-response', (event, { requestId: respId, value }) => {
+                if (respId === requestId) {
+                    resolve(value); // value为string或null
+                }
+            });
+            mainWindow.webContents.send('plugin-show-inputbox', { options, requestId });
+
+            console.log(`show-inputbox`);
+        });
+    }
 }
 
 module.exports = { PluginAPI, Disposable };

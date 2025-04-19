@@ -49,4 +49,5 @@ contextBridge.exposeInMainWorld('electronAPI', {
         return await ipcRenderer.invoke('command:list');
     },
     getCurrentFilePath: () => ipcRenderer.invoke('get-current-file-path'),
+    showInputBox: (options) => ipcRenderer.invoke('plugin:showInputBox', options),
 });
