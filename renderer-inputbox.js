@@ -283,3 +283,113 @@ window.createInformationMessage = function(message, options, requestId) {
 window.electronAPI.ipcOn('plugin-show-informationmessage', (event, { message, options, requestId }) => {
     window.createInformationMessage(message, options || {}, requestId);
 });
+
+// 动态创建 Error Message 错误消息弹窗并通过 IPC 发送结果
+window.createErrorMessage = function(message, options, requestId) {
+    // 防止重复创建
+    if (document.getElementById('electron-plugin-errormessage-mask')) return;
+
+    // 遮罩
+    const mask = document.createElement('div');
+    mask.id = 'electron-plugin-errormessage-mask';
+    mask.style.position = 'fixed';
+    mask.style.top = 0;
+    mask.style.left = 0;
+    mask.style.width = '100vw';
+    mask.style.height = '100vh';
+    mask.style.background = 'rgba(0,0,0,0.35)';
+    mask.style.zIndex = 9998;
+    mask.style.display = 'block';
+    document.body.appendChild(mask);
+
+    // 错误消息容器
+    const container = document.createElement('div');
+    container.id = 'electron-plugin-errormessage';
+    container.style.background = '#4a1a1a'; // 暗红色背景
+    container.style.color = '#fff';
+    container.style.border = 'none';
+    container.style.outline = 'none';
+    container.style.borderRadius = '6px';
+    container.style.boxShadow = '0 8px 32px 0 rgba(0,0,0,0.32)';
+    container.style.fontSize = '16px';
+    container.style.fontFamily = 'inherit';
+    container.style.width = '320px';
+    container.style.padding = '16px';
+    container.style.zIndex = 9999;
+    container.style.position = 'fixed';
+    container.style.left = '50%';
+    container.style.top = '80px';
+    container.style.transform = 'translateX(-50%)';
+    mask.appendChild(container);
+
+    // 错误图标（可选）
+    const icon = document.createElement('div');
+    icon.textContent = '❌'; // 或者使用 SVG 图标
+    icon.style.float = 'left';
+    icon.style.marginRight = '12px';
+    icon.style.fontSize = '24px';
+    container.appendChild(icon);
+
+    // 错误消息内容
+    const messageText = document.createElement('div');
+    messageText.textContent = message;
+    messageText.style.marginBottom = '16px';
+    messageText.style.overflow = 'hidden'; // 处理图标导致的布局问题
+    container.appendChild(messageText);
+
+    // 如果有详细信息并且是模态消息，添加详细信息
+    if (options && options.modal && options.detail) {
+        const detailText = document.createElement('div');
+        detailText.textContent = options.detail;
+        detailText.style.marginBottom = '16px';
+        detailText.style.color = '#ffcccc'; // 浅红色
+        detailText.style.fontSize = '14px';
+        container.appendChild(detailText);
+    }
+
+    // 确认按钮
+    const button = document.createElement('button');
+    button.textContent = 'OK';
+    button.style.background = '#c62828'; // 红色按钮
+    button.style.color = '#fff';
+    button.style.border = 'none';
+    button.style.borderRadius = '4px';
+    button.style.padding = '8px 16px';
+    button.style.cursor = 'pointer';
+    button.style.transition = 'background 0.2s';
+    button.onmouseover = function() {
+        button.style.background = '#9c0000';
+    };
+    button.onmouseout = function() {
+        button.style.background = '#c62828';
+    };
+    button.onclick = function() {
+        window.electronAPI.ipcSend('plugin-errormessage-response', { requestId, value: 'OK' });
+        cleanup();
+    };
+    container.appendChild(button);
+
+    // 键盘事件处理
+    function onKeyDown(e) {
+        if (e.key === 'Enter' || e.key === 'Escape') {
+            window.electronAPI.ipcSend('plugin-errormessage-response', { requestId, value: 'OK' });
+            cleanup();
+        }
+    }
+    window.addEventListener('keydown', onKeyDown, true);
+
+    // 清理函数
+    function cleanup() {
+        if (container.parentNode) container.parentNode.removeChild(container);
+        if (mask.parentNode) mask.parentNode.removeChild(mask);
+        window.removeEventListener('keydown', onKeyDown, true);
+    }
+
+    // 设置焦点到按钮
+    button.focus();
+};
+
+// 监听主进程请求弹出 Error Message
+window.electronAPI.ipcOn('plugin-show-errormessage', (event, { message, options, requestId }) => {
+    window.createErrorMessage(message, options || {}, requestId);
+});

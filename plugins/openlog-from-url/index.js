@@ -42,9 +42,10 @@ module.exports = function(pluginBasePath) {
             if (selected) {
                 console.log(`Selected: ${selected}`);
 
-                this.api.showInformationMessage('This is an information message', {modal: true, detail: `Selected:${selected}`});
+                this.api.showInformationMessage(`Selected:${selected}`, {modal: true, detail: `Selected:${selected}1111`});
             }
 
+            this.api.showErrorMessage(`Selected: ${selected}`, {modal: true, detail: 'Error detail'});
             
         }
     }

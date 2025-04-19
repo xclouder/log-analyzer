@@ -234,6 +234,24 @@ class PluginAPI {
             console.log(`show-informationmessage`);
         });
     }
+
+    async showErrorMessage(message, options) {
+        const { BrowserWindow, ipcMain } = require('electron');
+        const mainWindow = BrowserWindow.getAllWindows()[0];
+
+        return new Promise((resolve) => {
+            const requestId = Date.now() + Math.random();
+            // 只监听一次
+            ipcMain.once('plugin-errormessage-response', (event, { requestId: respId, value }) => {
+                if (respId === requestId) {
+                    resolve(value); // value为string或null
+                }
+            });
+            mainWindow.webContents.send('plugin-show-errormessage', { message, options, requestId });
+
+            console.log(`show-errormessage`);
+        });
+    }
 }
 
 module.exports = { PluginAPI, Disposable };
