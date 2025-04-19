@@ -692,6 +692,7 @@ async function doImportFilterConfig(filePath) {
 }
 
 async function doOpenFile(filePath) {
+    console.log(`doOpenFile: ${filePath}`);
     try {
         // 通过插件预处理文件路径
         const processedPath = await pluginManager.preProcessFilePath(filePath);
@@ -762,6 +763,7 @@ async function openFile(filePath) {
 
 // 监听插件请求打开文件
 ipcMain.on('plugin-open-file', async (event, { filePath, requestId }) => {
+    console.log(`plugin-open-file: ${filePath}`);
     try {
         await doOpenFile(filePath);
         event.reply('plugin-openfile-response', { requestId, success: true });
@@ -769,3 +771,9 @@ ipcMain.on('plugin-open-file', async (event, { filePath, requestId }) => {
         event.reply('plugin-openfile-response', { requestId, success: false, error: error.message });
     }
 });
+
+// 导出一些函数供其他模块使用
+module.exports = {
+    doOpenFile,
+    openFile
+};

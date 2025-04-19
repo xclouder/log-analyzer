@@ -255,7 +255,38 @@ class PluginAPI {
     }
 
     async openFile(filePath) {
-        //TODO:
+        console.log(`Plugin API attempting to open file: ${filePath}`);
+        
+        try {
+            // 直接引入 doOpenFile 函数来打开文件
+            // 因为 plugin-api.js 和 main.js 都在主进程中运行
+            // 我们可以直接调用，不需要 IPC 通信
+            const mainModule = require('./main');
+            
+            if (typeof mainModule.doOpenFile === 'function') {
+                console.log(`Directly calling doOpenFile for: ${filePath}`);
+                await mainModule.doOpenFile(filePath);
+                return true;
+            } else {
+                // 如果函数没有被导出，使用替代方法
+                // 这里我们可以直接操作文件系统
+                console.log(`doOpenFile not available, using fallback method for: ${filePath}`);
+                const fs = require('fs').promises;
+                const content = await fs.readFile(filePath, 'utf8');
+                
+                // 通知主窗口文件已经打开
+                if (this.mainWindow && this.mainWindow.webContents) {
+                    this.mainWindow.webContents.send('file-opened', { 
+                        content,
+                        filePath 
+                    });
+                }
+                return true;
+            }
+        } catch (error) {
+            console.error(`Error opening file: ${error.message}`);
+            throw new Error(`Failed to open file: ${error.message}`);
+        }
     }
 
     getAppCacheDir() {
