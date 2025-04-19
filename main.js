@@ -759,3 +759,13 @@ async function openFile(filePath) {
         return null;
     }
 }
+
+// 监听插件请求打开文件
+ipcMain.on('plugin-open-file', async (event, { filePath, requestId }) => {
+    try {
+        await doOpenFile(filePath);
+        event.reply('plugin-openfile-response', { requestId, success: true });
+    } catch (error) {
+        event.reply('plugin-openfile-response', { requestId, success: false, error: error.message });
+    }
+});

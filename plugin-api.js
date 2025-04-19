@@ -252,6 +252,28 @@ class PluginAPI {
             console.log(`show-errormessage`);
         });
     }
+
+    async openFile(filePath) {
+        const { BrowserWindow, ipcMain } = require('electron');
+        const mainWindow = BrowserWindow.getAllWindows()[0];
+
+        return new Promise((resolve, reject) => {
+            const requestId = Date.now() + Math.random();
+            // 只监听一次
+            ipcMain.once('plugin-openfile-response', (event, { requestId: respId, success, error }) => {
+                if (respId === requestId) {
+                    if (success) {
+                        resolve(true);
+                    } else {
+                        reject(new Error(error));
+                    }
+                }
+            });
+            mainWindow.webContents.send('plugin-open-file', { filePath, requestId });
+
+            console.log(`open-file: ${filePath}`);
+        });
+    }
 }
 
 module.exports = { PluginAPI, Disposable };
