@@ -41,7 +41,11 @@ module.exports = function(pluginBasePath) {
             
             if (selected) {
                 console.log(`Selected: ${selected}`);
+
+                this.api.showInformationMessage('This is an information message', {modal: true, detail: `Selected:${selected}`});
             }
+
+            
         }
     }
 

@@ -182,3 +182,104 @@ window.createQuickPick = function(items, options, requestId) {
 window.electronAPI.ipcOn('plugin-show-quickpick', (event, { items, options, requestId }) => {
     window.createQuickPick(items, options, requestId);
 });
+
+// 动态创建 Information Message 消息弹窗并通过 IPC 发送结果
+window.createInformationMessage = function(message, options, requestId) {
+    // 防止重复创建
+    if (document.getElementById('electron-plugin-informationmessage-mask')) return;
+
+    // 遮罩
+    const mask = document.createElement('div');
+    mask.id = 'electron-plugin-informationmessage-mask';
+    mask.style.position = 'fixed';
+    mask.style.top = 0;
+    mask.style.left = 0;
+    mask.style.width = '100vw';
+    mask.style.height = '100vh';
+    mask.style.background = 'rgba(0,0,0,0.35)';
+    mask.style.zIndex = 9998;
+    mask.style.display = 'block';
+    document.body.appendChild(mask);
+
+    // 消息容器
+    const container = document.createElement('div');
+    container.id = 'electron-plugin-informationmessage';
+    container.style.background = '#444';
+    container.style.color = '#fff';
+    container.style.border = 'none';
+    container.style.outline = 'none';
+    container.style.borderRadius = '6px';
+    container.style.boxShadow = '0 8px 32px 0 rgba(0,0,0,0.32)';
+    container.style.fontSize = '16px';
+    container.style.fontFamily = 'inherit';
+    container.style.width = '320px';
+    container.style.padding = '16px';
+    container.style.zIndex = 9999;
+    container.style.position = 'fixed';
+    container.style.left = '50%';
+    container.style.top = '80px';
+    container.style.transform = 'translateX(-50%)';
+    mask.appendChild(container);
+
+    // 消息内容
+    const messageText = document.createElement('div');
+    messageText.textContent = message;
+    messageText.style.marginBottom = '16px';
+    container.appendChild(messageText);
+
+    // 如果有详细信息并且是模态消息，添加详细信息
+    if (options && options.modal && options.detail) {
+        const detailText = document.createElement('div');
+        detailText.textContent = options.detail;
+        detailText.style.marginBottom = '16px';
+        detailText.style.color = '#bbb';
+        detailText.style.fontSize = '14px';
+        container.appendChild(detailText);
+    }
+
+    // 确认按钮
+    const button = document.createElement('button');
+    button.textContent = 'OK';
+    button.style.background = '#1565C0';
+    button.style.color = '#fff';
+    button.style.border = 'none';
+    button.style.borderRadius = '4px';
+    button.style.padding = '8px 16px';
+    button.style.cursor = 'pointer';
+    button.style.transition = 'background 0.2s';
+    button.onmouseover = function() {
+        button.style.background = '#104d8e';
+    };
+    button.onmouseout = function() {
+        button.style.background = '#1565C0';
+    };
+    button.onclick = function() {
+        window.electronAPI.ipcSend('plugin-informationmessage-response', { requestId, value: 'OK' });
+        cleanup();
+    };
+    container.appendChild(button);
+
+    // 键盘事件处理
+    function onKeyDown(e) {
+        if (e.key === 'Enter' || e.key === 'Escape') {
+            window.electronAPI.ipcSend('plugin-informationmessage-response', { requestId, value: 'OK' });
+            cleanup();
+        }
+    }
+    window.addEventListener('keydown', onKeyDown, true);
+
+    // 清理函数
+    function cleanup() {
+        if (container.parentNode) container.parentNode.removeChild(container);
+        if (mask.parentNode) mask.parentNode.removeChild(mask);
+        window.removeEventListener('keydown', onKeyDown, true);
+    }
+
+    // 设置焦点到按钮
+    button.focus();
+};
+
+// 监听主进程请求弹出 Information Message
+window.electronAPI.ipcOn('plugin-show-informationmessage', (event, { message, options, requestId }) => {
+    window.createInformationMessage(message, options || {}, requestId);
+});

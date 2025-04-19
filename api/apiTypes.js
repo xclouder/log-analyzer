@@ -58,3 +58,22 @@ class QuickPickOptions {
         this.onDidSelectItem = typeof options.onDidSelectItem === 'function' ? options.onDidSelectItem : undefined;
     }
 }
+
+/**
+ * Options to configure the behavior of the message UI.
+ *
+ * Properties:
+ *   detail?: string
+ *   modal?: boolean
+ */
+class MessageOptions {
+    /**
+     * @param {Object} options
+     * @param {string} [options.detail] Human-readable detail message that is rendered less prominent. Note that detail is only shown for modal messages.
+     * @param {boolean} [options.modal] Indicates that this message should be modal.
+     */
+    constructor(options = {}) {
+        this.detail = options.detail;
+        this.modal = options.modal;
+    }
+}
