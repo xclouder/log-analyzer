@@ -2,6 +2,7 @@ const { BrowserWindow } = require('electron');
 const path = require('path');
 const fs = require('fs').promises;
 const { ipcMain } = require('electron');
+const { getAppCacheDir } = require('electron-updater/out/AppAdapter');
 
 class Disposable {
     constructor(disposeAction) {
@@ -200,7 +201,7 @@ class PluginAPI {
      * @returns 
      */
     async showQuickPick(items, options) {
-        const { BrowserWindow, ipcMain } = require('electron');
+        const { BrowserWindow } = require('electron');
         const mainWindow = BrowserWindow.getAllWindows()[0];
 
         return new Promise((resolve) => {
@@ -218,7 +219,7 @@ class PluginAPI {
     }
 
     async showInformationMessage(message, options) {
-        const { BrowserWindow, ipcMain } = require('electron');
+        const { BrowserWindow } = require('electron');
         const mainWindow = BrowserWindow.getAllWindows()[0];
 
         return new Promise((resolve) => {
@@ -236,7 +237,7 @@ class PluginAPI {
     }
 
     async showErrorMessage(message, options) {
-        const { BrowserWindow, ipcMain } = require('electron');
+        const { BrowserWindow } = require('electron');
         const mainWindow = BrowserWindow.getAllWindows()[0];
 
         return new Promise((resolve) => {
@@ -254,25 +255,43 @@ class PluginAPI {
     }
 
     async openFile(filePath) {
-        const { BrowserWindow, ipcMain } = require('electron');
+        //TODO:
+    }
+
+    getAppCacheDir() {
+        const { app } = require('electron');
+        return app.getPath('userData') + '/cache';
+    }
+
+    async downloadFile(url, filePathRelativeToCacheDir, options = {}) {
+        const { BrowserWindow } = require('electron');
         const mainWindow = BrowserWindow.getAllWindows()[0];
+        const path = require('path');
+        const cacheDir = this.getAppCacheDir();
+        const downloadPath = path.join(cacheDir, filePathRelativeToCacheDir);
+        const fs = require('fs');
 
-        return new Promise((resolve, reject) => {
-            const requestId = Date.now() + Math.random();
-            // 只监听一次
-            ipcMain.once('plugin-openfile-response', (event, { requestId: respId, success, error }) => {
-                if (respId === requestId) {
-                    if (success) {
-                        resolve(true);
-                    } else {
-                        reject(new Error(error));
-                    }
-                }
+        // 确保缓存目录存在
+        fs.mkdirSync(path.dirname(downloadPath), { recursive: true });
+
+        try {
+            console.log(`Loading electron-dl module for download...`);
+            const electronDl = await import('electron-dl');
+            const download = electronDl.download;
+            console.log(`electron-dl module loaded successfully.`);
+            const downloadedItem = await download(mainWindow, url, {
+                saveAs: false,
+                directory: path.dirname(downloadPath),
+                filename: path.basename(downloadPath),
+                ...options
             });
-            mainWindow.webContents.send('plugin-open-file', { filePath, requestId });
-
-            console.log(`open-file: ${filePath}`);
-        });
+            const filePath = downloadedItem.getSavePath();
+            console.log(`Download successful for ${url}, saved to ${filePath}`);
+            return filePath;
+        } catch (error) {
+            console.error(`Download failed for ${url}: ${error.message}`);
+            throw new Error(error.message);
+        }
     }
 }
 

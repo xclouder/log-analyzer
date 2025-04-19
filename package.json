@@ -18,6 +18,7 @@
   "license": "ISC",
   "dependencies": {
     "adm-zip": "^0.5.10",
+    "electron-dl": "^4.0.0",
     "electron-updater": "^6.1.4",
     "log4js": "^6.9.1",
     "monaco-editor": "^0.40.0"
@@ -29,7 +30,7 @@
   "build": {
     "appId": "org.xclouder.loganalyzer",
     "productName": "LogAnalyzer",
-    "publish" : [
+    "publish": [
       {
         "provider": "github",
         "owner": "xclouder",
@@ -50,7 +51,9 @@
       {
         "from": "plugins",
         "to": "plugins",
-        "filter": ["**/*"]
+        "filter": [
+          "**/*"
+        ]
       }
     ],
     "win": {
@@ -58,8 +61,8 @@
       "icon": "icon.ico"
     },
     "mac": {
-    "icon": "icon.ico",
-    "target": [
+      "icon": "icon.ico",
+      "target": [
         "dmg",
         "zip"
       ]
@@ -90,7 +93,7 @@
       "runAfterFinish": true
     },
     "dmg": {
-    "contents": [
+      "contents": [
         {
           "x": 410,
           "y": 190,
