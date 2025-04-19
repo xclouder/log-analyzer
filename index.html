@@ -633,6 +633,15 @@
             onDidImportFilterCfg(config);
         });
 
+        window.electronAPI.onPluginOpenFile(async (event, filepath) => {
+            const result = await window.electronAPI.openFile(filepath);
+            if (result) {
+                const { content, filePath } = result;
+                editor.setValue(content);
+                updateFileInfo(filePath);
+            }
+        });
+
         // 清除所有过滤器
         function clearFilters() {
             currentFilterConfig.patterns = [];

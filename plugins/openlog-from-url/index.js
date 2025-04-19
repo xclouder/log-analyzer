@@ -137,7 +137,7 @@ module.exports = function(pluginBasePath) {
                     console.log(`User selected file: ${selectedFile}`);
                     const filePath = require('path').join(cacheDir, selectedFile);
                     try {
-                        await this.api.openFile(filePath);
+                        await this.api.pluginOpenFile(filePath);
                         console.log(`File opened successfully: ${filePath}`);
                         // await this.api.showInformationMessage(`File opened: ${selectedFile}`, { modal: true });
                     } catch (error) {

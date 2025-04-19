@@ -52,6 +52,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     },
     getCurrentFilePath: () => ipcRenderer.invoke('get-current-file-path'),
     showInputBox: (options) => ipcRenderer.invoke('plugin:showInputBox', options),
+
+    onPluginOpenFile: (callback) => ipcRenderer.on('plugin:open-file', callback)
 });
 
 // 监听渲染进程请求打开文件，并转发到主进程
