@@ -53,6 +53,12 @@
         "filter": [
           "**/*"
         ]
+      }, {
+        "from": "node_modules/adm-zip",
+        "to": "node_modules/adm-zip",
+        "filter": [
+          "**/*"
+        ]
       }
     ],
     "win": {
