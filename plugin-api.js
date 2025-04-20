@@ -269,8 +269,6 @@ class PluginAPI {
     }
 
     async downloadFile(url, filePathRelativeToCacheDir, options = {}) {
-        const { BrowserWindow } = require('electron');
-        const mainWindow = BrowserWindow.getAllWindows()[0];
         const path = require('path');
         const cacheDir = this.getAppCacheDir();
         const downloadPath = path.join(cacheDir, filePathRelativeToCacheDir);
@@ -280,19 +278,49 @@ class PluginAPI {
         fs.mkdirSync(path.dirname(downloadPath), { recursive: true });
 
         try {
-            console.log(`Loading electron-dl module for download...`);
-            const electronDl = await import('electron-dl');
-            const download = electronDl.download;
-            console.log(`electron-dl module loaded successfully.`);
-            const downloadedItem = await download(mainWindow, url, {
-                saveAs: false,
-                directory: path.dirname(downloadPath),
-                filename: path.basename(downloadPath),
-                ...options
+            console.log(`Starting download for ${url}...`);
+            const https = require('https');
+            const http = require('http');
+            
+            return new Promise((resolve, reject) => {
+                const isHttps = url.startsWith('https');
+                const client = isHttps ? https : http;
+                
+                const request = client.get(url, (response) => {
+                    // 处理重定向
+                    if (response.statusCode === 301 || response.statusCode === 302) {
+                        console.log(`Redirecting to: ${response.headers.location}`);
+                        return this.downloadFile(response.headers.location, filePathRelativeToCacheDir, options)
+                            .then(resolve)
+                            .catch(reject);
+                    }
+                    
+                    if (response.statusCode !== 200) {
+                        reject(new Error(`Failed to download file: ${response.statusCode}`));
+                        return;
+                    }
+                    
+                    const fileStream = fs.createWriteStream(downloadPath);
+                    response.pipe(fileStream);
+                    
+                    fileStream.on('finish', () => {
+                        fileStream.close();
+                        console.log(`Download successful for ${url}, saved to ${downloadPath}`);
+                        resolve(downloadPath);
+                    });
+                    
+                    fileStream.on('error', (err) => {
+                        fs.unlink(downloadPath, () => {}); // 删除下载的文件
+                        reject(err);
+                    });
+                });
+                
+                request.on('error', (err) => {
+                    reject(err);
+                });
+                
+                request.end();
             });
-            const filePath = downloadedItem.getSavePath();
-            console.log(`Download successful for ${url}, saved to ${filePath}`);
-            return filePath;
         } catch (error) {
             console.error(`Download failed for ${url}: ${error.message}`);
             throw new Error(error.message);
