@@ -1,6 +1,6 @@
 const path = require('path');
 
-module.exports = function(pluginBasePath) {
+module.exports = function (pluginBasePath) {
     const Plugin = require(pluginBasePath);
 
     class OpenlogFromUrlPlugin extends Plugin {
@@ -14,9 +14,69 @@ module.exports = function(pluginBasePath) {
          * @param {string} filePath - The path of the file
          * @returns {Promise<string>} - The processed file path
          */
-        async processPath(filePath) {
+        async onPreOpenFile(filePath) {
             // Add your path processing logic here
+
+            console.log('[OpenLogFromUrl] Processing file:', filePath);
+            if (this.isCompressedFile(filePath)) {
+                const cacheDir = require('path').join(path.dirname(filePath), path.basename(filePath, path.extname(filePath)));
+
+                //uncompress file to current directory
+                const AdmZip = require('adm-zip');
+                const zip = new AdmZip(filePath);
+                zip.extractAllTo(cacheDir, true);
+
+                // 获取解压后的文件列表
+                const fs = require('fs');
+                const filesArray = [];
+                const walkDir = (dir) => {
+                    const files = fs.readdirSync(dir);
+                    files.forEach(file => {
+                        const fullPath = require('path').join(dir, file);
+                        if (fs.statSync(fullPath).isFile()) {
+                            filesArray.push(fullPath.replace(cacheDir + require('path').sep, ''));
+                        } else {
+                            walkDir(fullPath);
+                        }
+                    });
+                };
+                walkDir(cacheDir);
+                console.log(`Files in cache directory: ${filesArray.length} files found.`);
+                console.log(filesArray);
+
+                // 如果没有文件，显示错误信息
+                if (filesArray.length === 0) {
+                    console.error(`No files found in extracted directory.`);
+                    await this.api.showErrorMessage(`No files found after extraction`, { modal: true, detail: `No files were extracted from the downloaded ZIP.` });
+                    return;
+                }
+
+                // 让用户选择要打开的文件
+                const selectedFile = await this.api.showQuickPick(filesArray, { title: "Select a file to open:" });
+                if (selectedFile) {
+                    console.log(`User selected file: ${selectedFile}`);
+                    const filePath = require('path').join(cacheDir, selectedFile);
+                    try {
+                        await this.api.pluginOpenFile(filePath);
+                        console.log(`File opened successfully: ${filePath}`);
+                        // await this.api.showInformationMessage(`File opened: ${selectedFile}`, { modal: true });
+                    } catch (error) {
+                        console.error(`Failed to open file: ${error.message}`);
+                        await this.api.showErrorMessage(`Failed to open file: ${selectedFile}`, { modal: true, detail: error.message });
+                    }
+                } else {
+                    console.log(`User cancelled file selection.`);
+                }
+
+                return filePath;
+            }
+
             return filePath;
+        }
+
+        isCompressedFile(filePath) {
+            const ext = path.extname(filePath).toLowerCase();
+            return ['.zip', '.tar', '.gz', '.tar.gz', '.7z', '.zip'].includes(ext);
         }
 
         async onActivate(context) {
@@ -25,14 +85,14 @@ module.exports = function(pluginBasePath) {
             this.api.registerCommand(context, 'loganalyzer.openLogFromUrl', () => {
                 this.doWork();
             });
-        }  
-        
+        }
+
         async doWork() {
             console.log(`OpenlogFromUrlPlugin doWork`);
 
             // 获取用户输入的 URL
             const url = await this.api.showInputBox({ title: "Input log url:" });
-            
+
             if (!url) {
                 console.log(`User cancelled URL input`);
                 return;
