@@ -693,9 +693,19 @@ async function doImportFilterConfig(filePath) {
 
 async function doOpenFile(filePath) {
     console.log(`doOpenFile: ${filePath}`);
+
+    let finalPath = filePath;
+    
     try {
         // 通过插件预处理文件路径
-        const processedPath = await pluginManager.preProcessFilePath(filePath);
+        finalPath = await pluginManager.preProcessFilePath(filePath);
+    } catch (err) {
+        logError('Error preprocessing file path:', err);
+    }
+    
+    try {
+        // 通过插件预处理文件路径
+        const processedPath = finalPath;
         
         // 读取文件内容
         const content = await fs.readFile(processedPath, 'utf8');
@@ -714,7 +724,7 @@ async function doOpenFile(filePath) {
         };
     } catch (err) {
         logError('Error reading file:', err);
-        return null;
+        return { content: null, filePath: finalPath };
     }
 }
 

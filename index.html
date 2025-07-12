@@ -451,6 +451,9 @@
                     if (content !== null) {
                         onDidOpenFile(filePath, content);
                     }
+                    else {
+                        showFileOpenError(filePath, '文件可能太大，无法打开');
+                    }
                 } catch (err) {
                     console.error('Error reading file:', err);
                     alert('读取文件失败: ' + err.message);
@@ -1102,15 +1105,25 @@
 
         async function showOpenFileDialog() {
             console.log(`showOpenFileDialog`);
-            const result = await window.electronAPI.dialogOpenFile();
+            try {
+                const result = await window.electronAPI.dialogOpenFile();
 
-            if (result) {
-                const { content, filePath } = result;
+                if (result) {
+                    const { content, filePath } = result;
 
-                onDidOpenFile(filePath, content);
-            }
-            else {
-                console.error(`showOpenFileDialog error: ${result}`);
+                    if (content !== null) {
+                        onDidOpenFile(filePath, content);
+                    }
+                    else {
+                        showFileOpenError(filePath, `文件可能太大，无法打开`);
+                    }
+                } else {
+                    console.error(`showOpenFileDialog error: ${result}`);
+                    alert(`showOpenFileDialog error: ${result}`)
+                }
+            } catch (err) {
+                console.error('Error opening file dialog:', err);
+                alert(`Error opening file dialog: ${err.message || '未知错误'}`);
             }
         }
 
@@ -1118,6 +1131,16 @@
             currentFilePath = filePath;
             // 更新窗口标题
             document.title = `LogAnalyzer - ${filePath}`;
+        }
+
+        // 统一的文件打开错误处理函数
+        function showFileOpenError(filePath, errorMessage) {
+            const message = `打开文件失败：${errorMessage}。\n是否在系统中打开文件所在位置？`;
+            const shouldOpenFolder = confirm(message);
+            
+            if (shouldOpenFolder) {
+                window.electronAPI.showItemInFolder(filePath);
+            }
         }
 
         function toggleFilterPanel() {
