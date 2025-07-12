@@ -691,6 +691,7 @@
                             <option value="text" ${filter.type === 'text' ? 'selected' : ''}>文本匹配</option>
                             <option value="regex" ${filter.type === 'regex' ? 'selected' : ''}>正则匹配</option>
                             <option value="line" ${filter.type === 'line' ? 'selected' : ''}>行号范围</option>
+                            <option value="exclude-text" ${filter.type === 'exclude-text' ? 'selected' : ''}>排除文本</option>
                         </select>
                         <input type="text" class="filter-pattern" value="${filter.pattern || ''}" placeholder="输入过滤条件">
                         <div class="highlight-controls">
@@ -754,6 +755,9 @@
                 case 'line':
                     input.placeholder = '输入行号范围（如：1-100 或 1,2,3）';
                     break;
+                case 'exclude-text':
+                    input.placeholder = '输入要排除的文本';
+                    break;
                 default:
                     input.placeholder = '输入过滤条件';
             }
@@ -769,6 +773,7 @@
                     <option value="text">文本匹配</option>
                     <option value="regex">正则匹配</option>
                     <option value="line">行号范围</option>
+                    <option value="exclude-text">排除文本</option>
                 </select>
                 <input type="text" class="filter-pattern" placeholder="输入过滤条件">
                 <div class="highlight-controls">
@@ -847,8 +852,10 @@
                 const filteredLineIndices = new Set();
                 let highlightRanges = [];
 
-                // 只使用激活的过滤器
+                // 分离 exclude-text 过滤器和其他过滤器
                 const activeFilters = currentFilterConfig.patterns.filter(filter => filter.enabled);
+                const includeFilters = activeFilters.filter(filter => filter.type !== 'exclude-text');
+                const excludeFilters = activeFilters.filter(filter => filter.type === 'exclude-text');
 
                 // 如果没有激活的过滤器，显示所有内容
                 if (activeFilters.length === 0) {
@@ -857,62 +864,96 @@
                     return;
                 }
 
-                activeFilters.forEach(filter => {
-                    if (!filter.pattern) return;
+                // 先应用包含类型的过滤器
+                if (includeFilters.length > 0) {
+                    includeFilters.forEach(filter => {
+                        if (!filter.pattern) return;
 
-                    try {
-                        switch (filter.type) {
-                            case 'text':
-                                lines.forEach((line, index) => {
-                                    if (line.toLowerCase().includes(filter.pattern.toLowerCase())) {
-                                        filteredLineIndices.add(index);
-                                    }
-                                });
-                                if (filter.highlight) {
-                                    highlightRanges.push({
-                                        pattern: filter.pattern,
-                                        color: filter.highlightColor
+                        try {
+                            switch (filter.type) {
+                                case 'text':
+                                    lines.forEach((line, index) => {
+                                        if (line.toLowerCase().includes(filter.pattern.toLowerCase())) {
+                                            filteredLineIndices.add(index);
+                                        }
                                     });
-                                }
-                                break;
+                                    if (filter.highlight) {
+                                        highlightRanges.push({
+                                            pattern: filter.pattern,
+                                            color: filter.highlightColor
+                                        });
+                                    }
+                                    break;
 
-                            case 'regex':
-                                const regex = new RegExp(filter.pattern, 'i');
-                                lines.forEach((line, index) => {
-                                    if (regex.test(line)) {
-                                        filteredLineIndices.add(index);
-                                    }
-                                });
-                                if (filter.highlight) {
-                                    highlightRanges.push({
-                                        pattern: filter.pattern,
-                                        color: filter.highlightColor,
-                                        isRegex: true
+                                case 'regex':
+                                    const regex = new RegExp(filter.pattern, 'i');
+                                    lines.forEach((line, index) => {
+                                        if (regex.test(line)) {
+                                            filteredLineIndices.add(index);
+                                        }
                                     });
-                                }
-                                break;
+                                    if (filter.highlight) {
+                                        highlightRanges.push({
+                                            pattern: filter.pattern,
+                                            color: filter.highlightColor,
+                                            isRegex: true
+                                        });
+                                    }
+                                    break;
 
-                            case 'line':
-                                const lineNumbers = parseLineNumbers(filter.pattern);
-                                lineNumbers.forEach(lineNum => {
-                                    if (lineNum > 0 && lineNum <= lines.length) {
-                                        filteredLineIndices.add(lineNum - 1);
-                                    }
-                                });
-                                if (filter.highlight) {
-                                    highlightRanges.push({
-                                        pattern: `^.*$`,
-                                        color: filter.highlightColor,
-                                        isRegex: true,
-                                        lines: lineNumbers
+                                case 'line':
+                                    const lineNumbers = parseLineNumbers(filter.pattern);
+                                    lineNumbers.forEach(lineNum => {
+                                        if (lineNum > 0 && lineNum <= lines.length) {
+                                            filteredLineIndices.add(lineNum - 1);
+                                        }
                                     });
-                                }
-                                break;
+                                    if (filter.highlight) {
+                                        highlightRanges.push({
+                                            pattern: `^.*$`,
+                                            color: filter.highlightColor,
+                                            isRegex: true,
+                                            lines: lineNumbers
+                                        });
+                                    }
+                                    break;
+                            }
+                        } catch (err) {
+                            console.error('Filter error:', err);
                         }
-                    } catch (err) {
-                        console.error('Filter error:', err);
+                    });
+                } else {
+                    // 如果没有包含类型的过滤器，显示所有行
+                    for (let i = 0; i < lines.length; i++) {
+                        filteredLineIndices.add(i);
                     }
-                });
+                }
+
+                // 应用exclude-text过滤器（从结果中移除匹配的行）
+                if (excludeFilters.length > 0) {
+                    const indicesToRemove = new Set();
+                    
+                    excludeFilters.forEach(filter => {
+                        if (!filter.pattern) return;
+                        
+                        try {
+                            // 遍历已筛选的行，找到需要排除的行
+                            Array.from(filteredLineIndices).forEach(lineIndex => {
+                                const line = lines[lineIndex];
+                                if (line.toLowerCase().includes(filter.pattern.toLowerCase())) {
+                                    indicesToRemove.add(lineIndex);
+                                }
+                            });
+                        } catch (err) {
+                            console.error('Exclude filter error:', err);
+                        }
+                    });
+                    
+                    // 从结果中移除排除的行
+                    indicesToRemove.forEach(index => {
+                        filteredLineIndices.delete(index);
+                    });
+                }
 
                 // 将匹配的行转换为数组并排序
                 const sortedIndices = Array.from(filteredLineIndices).sort((a, b) => a - b);
