@@ -307,6 +307,9 @@
         }
     </style>
     <link rel="stylesheet" href="command-palette.css">
+    <link href="kendo-ui/default-main-dark.css" rel="stylesheet" />
+    <script src="kendo-ui/jquery-3.7.0.min.js"></script>
+    <script src="kendo-ui/kendo.all.min.js"></script>
 </head>
 
 <body>
@@ -645,6 +648,40 @@
             }
         });
 
+        // 初始化Kendo ColorPicker
+        function initializeColorPicker(container, initialColor) {
+            if (!container || !$) return;
+            
+            try {
+                // 检查是否已经初始化过
+                if ($(container).data('kendoColorPicker')) {
+                    return;
+                }
+                
+                $(container).kendoColorPicker({
+                    // views: ["palette"], // Set the view for the ColorPicker.
+                    preview: false, // Disable the displaying of the color preview element and the previously selected color for comparison.
+                    // palette: "basic", // Define the drop-down that lists the colors.
+                    buttons: false,
+                    clearButton: true,
+                    // toolIcon: 'background-color',
+                    value: initialColor || '',
+                    palette: [
+                        '#FFEB3B', '#4CAF50', '#2196F3', '#FF9800', '#F44336',
+                        '#9C27B0', '#00BCD4', '#8BC34A', '#FFC107', '#E91E63',
+                        '#3F51B5', '#009688', '#795548', '#607D8B', '#000000'
+                    ],
+                    change: function(e) {
+                        updateCurrentConfig();
+                    }
+                });
+                
+                console.log('Kendo ColorPicker initialized for container:', container);
+            } catch (error) {
+                console.error('Failed to initialize Kendo ColorPicker:', error);
+            }
+        }
+
         // 清除所有过滤器
         function clearFilters() {
             currentFilterConfig.patterns = [];
@@ -661,13 +698,28 @@
         // 更新当前配置
         function updateCurrentConfig() {
             const filterItems = document.querySelectorAll('.filter-item');
-            currentFilterConfig.patterns = Array.from(filterItems).map(item => ({
-                enabled: item.querySelector('.enable-checkbox').checked,
-                type: item.querySelector('.filter-type').value,
-                pattern: item.querySelector('.filter-pattern').value,
-                highlight: item.querySelector('.highlight-checkbox').checked,
-                highlightColor: item.querySelector('.highlight-color').value
-            }));
+            currentFilterConfig.patterns = Array.from(filterItems).map(item => {
+                const colorPickerContainer = item.querySelector('.kendo-colorpicker-container');
+                let highlightColor = '';
+                let highlight = false;
+                
+                if (colorPickerContainer) {
+                    const colorPickerWidget = $(colorPickerContainer).data('kendoColorPicker');
+                    if (colorPickerWidget) {
+                        const color = colorPickerWidget.value();
+                        highlightColor = color || '';
+                        highlight = !!color; // 有颜色即表示启用高亮
+                    }
+                }
+                
+                return {
+                    enabled: item.querySelector('.enable-checkbox').checked,
+                    type: item.querySelector('.filter-type').value,
+                    pattern: item.querySelector('.filter-pattern').value,
+                    highlight: highlight,
+                    highlightColor: highlightColor
+                };
+            });
         }
 
         // 更新过滤器UI
@@ -693,36 +745,24 @@
                             <option value="line" ${filter.type === 'line' ? 'selected' : ''}>行号范围</option>
                             <option value="exclude-text" ${filter.type === 'exclude-text' ? 'selected' : ''}>排除文本</option>
                         </select>
-                        <input type="text" class="filter-pattern" value="${filter.pattern || ''}" placeholder="输入过滤条件">
                         <div class="highlight-controls">
-                            <input type="checkbox" class="highlight-checkbox" ${filter.highlight ? 'checked' : ''}>
-                            <input type="color" class="highlight-color" value="${filter.highlightColor || '#FFEB3B'}" 
-                                   ${filter.highlight ? '' : 'disabled'}>
+                            <div class="kendo-colorpicker-container"></div>
                         </div>
+                        <input type="text" class="filter-pattern" value="${filter.pattern || ''}" placeholder="输入过滤条件">
                         <button class="delete-filter" onclick="deleteFilter(this)">删除</button>
                     `;
 
                     const typeSelect = filterItem.querySelector('.filter-type');
                     const patternInput = filterItem.querySelector('.filter-pattern');
+                    const colorPickerContainer = filterItem.querySelector('.kendo-colorpicker-container');
 
                     // 更新输入框提示
                     updatePlaceholder(typeSelect, patternInput);
 
                     // 添加事件监听器
                     const enableCheckbox = filterItem.querySelector('.enable-checkbox');
-                    const highlightCheckbox = filterItem.querySelector('.highlight-checkbox');
-                    const highlightColor = filterItem.querySelector('.highlight-color');
 
                     enableCheckbox.addEventListener('change', () => {
-                        updateCurrentConfig();
-                    });
-
-                    highlightCheckbox.addEventListener('change', () => {
-                        highlightColor.disabled = !highlightCheckbox.checked;
-                        updateCurrentConfig();
-                    });
-
-                    highlightColor.addEventListener('input', () => {
                         updateCurrentConfig();
                     });
 
@@ -735,7 +775,21 @@
                         updateCurrentConfig();
                     });
 
+                    // 先添加到DOM中
                     container.appendChild(filterItem);
+                    
+                    // 然后初始化Kendo ColorPicker（传入已保存的颜色值）
+                    if (colorPickerContainer) {
+                        initializeColorPicker(colorPickerContainer, filter.highlightColor || '#FFEB3B');
+                        
+                        // 如果没有高亮设置，则清除颜色
+                        if (!filter.highlight) {
+                            const colorPicker = $(colorPickerContainer).data('kendoColorPicker');
+                            if (colorPicker) {
+                                colorPicker.value('');
+                            }
+                        }
+                    }
                 });
             }
             console.log('Filter UI updated, current config:', currentFilterConfig);
@@ -775,31 +829,20 @@
                     <option value="line">行号范围</option>
                     <option value="exclude-text">排除文本</option>
                 </select>
-                <input type="text" class="filter-pattern" placeholder="输入过滤条件">
                 <div class="highlight-controls">
-                    <input type="checkbox" class="highlight-checkbox">
-                    <input type="color" class="highlight-color" value="#FFEB3B" disabled>
+                    <div class="kendo-colorpicker-container"></div>
                 </div>
+                <input type="text" class="filter-pattern" placeholder="输入过滤条件">
                 <button class="delete-filter" onclick="deleteFilter(this)">删除</button>
             `;
 
             // 添加事件监听器
             const enableCheckbox = filterDiv.querySelector('.enable-checkbox');
-            const highlightCheckbox = filterDiv.querySelector('.highlight-checkbox');
-            const highlightColor = filterDiv.querySelector('.highlight-color');
+            const colorPickerContainer = filterDiv.querySelector('.kendo-colorpicker-container');
             const typeSelect = filterDiv.querySelector('.filter-type');
             const patternInput = filterDiv.querySelector('.filter-pattern');
 
             enableCheckbox.addEventListener('change', () => {
-                updateCurrentConfig();
-            });
-
-            highlightCheckbox.addEventListener('change', () => {
-                highlightColor.disabled = !highlightCheckbox.checked;
-                updateCurrentConfig();
-            });
-
-            highlightColor.addEventListener('input', () => {
                 updateCurrentConfig();
             });
 
@@ -812,7 +855,14 @@
                 updateCurrentConfig();
             });
 
+            // 先添加到DOM中
             document.getElementById('filter-container').appendChild(filterDiv);
+            
+            // 然后初始化Kendo ColorPicker（只对这个新创建的容器）
+            if (colorPickerContainer) {
+                initializeColorPicker(colorPickerContainer, '');
+            }
+            
             updateCurrentConfig();
         }
 
