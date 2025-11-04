@@ -300,22 +300,87 @@ class PluginAPI {
                         return;
                     }
                     
+                    // 获取文件总大小
+                    const totalSize = parseInt(response.headers['content-length'], 10);
+                    let downloadedSize = 0;
+                    let lastProgressUpdate = 0;
+                    
                     const fileStream = fs.createWriteStream(downloadPath);
+                    
+                    // 监听下载进度
+                    response.on('data', (chunk) => {
+                        downloadedSize += chunk.length;
+                        
+                        // 计算进度百分比
+                        const progress = totalSize ? Math.round((downloadedSize / totalSize) * 100) : 0;
+                        
+                        // 每5%更新一次进度，避免过于频繁的更新
+                        if (progress - lastProgressUpdate >= 5 || progress === 100) {
+                            lastProgressUpdate = progress;
+                            const progressInfo = {
+                                url,
+                                downloadedSize,
+                                totalSize,
+                                progress,
+                                downloadPath: filePathRelativeToCacheDir
+                            };
+                            
+                            console.log(`Download progress: ${progress}% (${(downloadedSize / 1024 / 1024).toFixed(2)}MB / ${(totalSize / 1024 / 1024).toFixed(2)}MB)`);
+                            
+                            // 通知主窗口下载进度
+                            if (this.mainWindow && this.mainWindow.webContents) {
+                                this.mainWindow.webContents.send('download:progress', progressInfo);
+                            }
+                            
+                            // 如果提供了进度回调函数，调用它
+                            if (options.onProgress && typeof options.onProgress === 'function') {
+                                options.onProgress(progressInfo);
+                            }
+                        }
+                    });
+                    
                     response.pipe(fileStream);
                     
                     fileStream.on('finish', () => {
                         fileStream.close();
                         console.log(`Download successful for ${url}, saved to ${downloadPath}`);
+                        
+                        // 发送下载完成通知
+                        if (this.mainWindow && this.mainWindow.webContents) {
+                            this.mainWindow.webContents.send('download:complete', {
+                                url,
+                                downloadPath: filePathRelativeToCacheDir,
+                                totalSize
+                            });
+                        }
+                        
                         resolve(downloadPath);
                     });
                     
                     fileStream.on('error', (err) => {
                         fs.unlink(downloadPath, () => {}); // 删除下载的文件
+                        
+                        // 发送下载失败通知
+                        if (this.mainWindow && this.mainWindow.webContents) {
+                            this.mainWindow.webContents.send('download:error', {
+                                url,
+                                error: err.message
+                            });
+                        }
+                        
                         reject(err);
                     });
                 });
                 
                 request.on('error', (err) => {
+                    // 发送下载失败通知
+                    if (this.mainWindow && this.mainWindow.webContents) {
+                        this.mainWindow.webContents.send('download:error', {
+                            url,
+                            error: err.message
+                        });
+                    }
+                    
                     reject(err);
                 });
                 

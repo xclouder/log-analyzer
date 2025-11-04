@@ -53,7 +53,19 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getCurrentFilePath: () => ipcRenderer.invoke('get-current-file-path'),
     showInputBox: (options) => ipcRenderer.invoke('plugin:showInputBox', options),
 
-    onPluginOpenFile: (callback) => ipcRenderer.on('plugin:open-file', callback)
+    onPluginOpenFile: (callback) => ipcRenderer.on('plugin:open-file', callback),
+    
+    // 下载进度相关
+    onDownloadProgress: (callback) => ipcRenderer.on('download:progress', callback),
+    onDownloadComplete: (callback) => ipcRenderer.on('download:complete', callback),
+    onDownloadError: (callback) => ipcRenderer.on('download:error', callback),
+    
+    // 大文件读取
+    readFileByTimestamp: (filePath, timestamp, sizeMB) => 
+        ipcRenderer.invoke('file:read-by-timestamp', { filePath, timestamp, sizeMB }),
+    
+    // 文件信息
+    getFileStats: (filePath) => ipcRenderer.invoke('file:stats', filePath)
 });
 
 // 监听渲染进程请求打开文件，并转发到主进程

@@ -1,0 +1,31 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "调试主进程",
+            "type": "node",
+            "request": "launch",
+            "cwd": "${workspaceFolder}",
+            "runtimeExecutable": "${workspaceFolder}/node_modules/.bin/electron",
+            "windows": {
+                "runtimeExecutable": "${workspaceFolder}/node_modules/.bin/electron.cmd"
+            },
+            "args": ["."],
+            "outputCapture": "std",
+            "env": {
+                "DEBUG_MODE": "true"
+            }
+        },
+        {
+            "name": "调试构建版本",
+            "type": "node",
+            "request": "launch",
+            "cwd": "${workspaceFolder}",
+            "runtimeExecutable": "${workspaceFolder}/dist/win-unpacked/LogAnalyzer.exe",
+            "env": {
+                "DEBUG_MODE": "true",
+                "ELECTRON_ENABLE_LOGGING": "1"
+            }
+        }
+    ]
+}
