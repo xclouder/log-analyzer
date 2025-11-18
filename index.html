@@ -557,18 +557,31 @@
         <div class="large-file-dialog-content">
             <div class="large-file-dialog-field">
                 <label>时间戳（可选）</label>
-                <input type="text" id="timestampInput" placeholder="例如: 11.04-19.19.39 或 11.04-19.19">
+                <input type="text" id="timestampInput" placeholder="例如: 11.04-19.19.39 或 11.04-19.19" onkeydown="if(event.key==='Enter')confirmReadLargeFile()">
                 <div class="file-info-text">UE格式: MM.DD-HH.mm.ss 或 MM.DD-HH.mm（可省略秒）</div>
             </div>
             <div class="large-file-dialog-field">
                 <label>读取大小（MB）</label>
-                <input type="number" id="readSizeInput" value="100" min="1" max="1000">
+                <input type="number" id="readSizeInput" value="100" min="1" max="1000" onkeydown="if(event.key==='Enter')confirmReadLargeFile()">
                 <div class="file-info-text">默认100MB，最大1000MB</div>
             </div>
         </div>
         <div class="large-file-dialog-buttons">
             <button class="large-file-dialog-button secondary" onclick="closeLargeFileDialog()">取消</button>
             <button class="large-file-dialog-button primary" onclick="confirmReadLargeFile()">读取</button>
+        </div>
+    </div>
+    
+    <!-- 自定义确认对话框 -->
+    <div id="confirmDialogOverlay" class="large-file-dialog-overlay"></div>
+    <div id="confirmDialog" class="large-file-dialog">
+        <h3 id="confirmDialogTitle">确认</h3>
+        <div class="large-file-dialog-content">
+            <div id="confirmDialogMessage" style="color: #e0e0e0; font-size: 14px; line-height: 1.6; white-space: pre-wrap;"></div>
+        </div>
+        <div class="large-file-dialog-buttons">
+            <button class="large-file-dialog-button secondary" onclick="closeConfirmDialog(false)">取消</button>
+            <button class="large-file-dialog-button primary" onclick="closeConfirmDialog(true)">确定</button>
         </div>
     </div>
     
@@ -874,12 +887,8 @@
         });
 
         window.electronAPI.onPluginOpenFile(async (event, filepath) => {
-            const result = await window.electronAPI.openFile(filepath);
-            if (result) {
-                const { content, filePath } = result;
-                editor.setValue(content);
-                updateFileInfo(filePath);
-            }
+            // 使用统一的 checkAndOpenFile 函数，支持大文件检测
+            await checkAndOpenFile(filepath);
         });
 
         // 初始化Kendo ColorPicker
@@ -1433,48 +1442,16 @@
             try {
                 const result = await window.electronAPI.dialogOpenFile();
 
-                if (result) {
-                    const { content, filePath } = result;
-
-                    if (content !== null) {
-                        onDidOpenFile(filePath, content);
-                    }
-                    else {
-                        // 文件可能太大，使用高级读取模式
-                        try {
-                            const stats = await window.electronAPI.getFileStats(filePath);
-                            const fileSizeMB = stats.size / 1024 / 1024;
-                            
-                            if (fileSizeMB > 200) {
-                                const useAdvanced = confirm(
-                                    `文件大小: ${fileSizeMB.toFixed(2)}MB
-
-` +
-                                    `文件较大，是否使用高级读取模式？
-` +
-                                    `- 点击"确定"：使用高级模式（可指定时间戳和读取大小）
-` +
-                                    `- 点击"取消"：放弃打开`
-                                );
-                                
-                                if (useAdvanced) {
-                                    showLargeFileDialog(filePath);
-                                }
-                            } else {
-                                showFileOpenError(filePath, `文件可能太大，无法打开`);
-                            }
-                        } catch (err) {
-                            showFileOpenError(filePath, `文件可能太大，无法打开`);
-                        }
-                    }
-                } else {
-                    console.error(`showOpenFileDialog error: ${result}`);
+                if (result && result.filePath) {
+                    // 使用统一的 checkAndOpenFile 函数，支持大文件检测
+                    await checkAndOpenFile(result.filePath);
                 }
             } catch (err) {
                 console.error('Error opening file dialog:', err);
                 alert(`Error opening file dialog: ${err.message || '未知错误'}`);
             }
         }
+
 
         function updateFileInfo(filePath) {
             currentFilePath = filePath;
@@ -1567,6 +1544,51 @@
             });
         }
         
+        // 自定义确认对话框
+        let confirmDialogResolve = null;
+        
+        function showConfirmDialog(message, title = '确认') {
+            return new Promise((resolve) => {
+                confirmDialogResolve = resolve;
+                
+                const dialog = document.getElementById('confirmDialog');
+                const overlay = document.getElementById('confirmDialogOverlay');
+                const titleElement = document.getElementById('confirmDialogTitle');
+                const messageElement = document.getElementById('confirmDialogMessage');
+                
+                titleElement.textContent = title;
+                messageElement.textContent = message;
+                
+                overlay.classList.add('active');
+                dialog.classList.add('active');
+                
+                // 添加 ESC 键关闭对话框
+                const escHandler = (e) => {
+                    if (e.key === 'Escape') {
+                        closeConfirmDialog(false);
+                        document.removeEventListener('keydown', escHandler);
+                    } else if (e.key === 'Enter') {
+                        closeConfirmDialog(true);
+                        document.removeEventListener('keydown', escHandler);
+                    }
+                };
+                document.addEventListener('keydown', escHandler);
+            });
+        }
+        
+        function closeConfirmDialog(result) {
+            const dialog = document.getElementById('confirmDialog');
+            const overlay = document.getElementById('confirmDialogOverlay');
+            
+            dialog.classList.remove('active');
+            overlay.classList.remove('active');
+            
+            if (confirmDialogResolve) {
+                confirmDialogResolve(result);
+                confirmDialogResolve = null;
+            }
+        }
+        
         // 大文件读取相关函数
         let pendingLargeFilePath = null;
         
@@ -1578,17 +1600,48 @@
                 alert('文件路径无效，无法打开大文件对话框');
                 return;
             }
+
             
             pendingLargeFilePath = filePath;
             const dialog = document.getElementById('largeFileDialog');
             const overlay = document.getElementById('largeFileDialogOverlay');
-            
-            dialog.classList.add('active');
+
+            // 先显示对话框
             overlay.classList.add('active');
+            dialog.classList.add('active');
             
             // 重置输入
-            document.getElementById('timestampInput').value = '';
-            document.getElementById('readSizeInput').value = '100';
+            const timestampInput = document.getElementById('timestampInput');
+            const readSizeInput = document.getElementById('readSizeInput');
+            
+            timestampInput.value = '';
+            readSizeInput.value = '100';
+            
+            
+            // 使用多重策略确保输入框获得焦点
+            requestAnimationFrame(() => {
+                setTimeout(() => {
+                    // 先让窗口失焦再聚焦，触发焦点刷新
+                    setTimeout(() => {
+                        window.blur();
+                        window.focus();
+                        dialog.blur();
+                        dialog.focus();
+                        // 聚焦到输入框
+                        timestampInput.focus();
+                        timestampInput.click();
+                    }, 50);
+                }, 150);
+            });
+            
+            // 添加 ESC 键关闭对话框
+            const escHandler = (e) => {
+                if (e.key === 'Escape') {
+                    closeLargeFileDialog();
+                    document.removeEventListener('keydown', escHandler);
+                }
+            };
+            document.addEventListener('keydown', escHandler);
             
             console.log('Large file dialog opened for:', filePath);
         }
@@ -1667,16 +1720,17 @@
                 
                 // 如果文件大于200MB，显示大文件读取对话框
                 if (fileSizeMB > 200) {
-                    const useAdvanced = confirm(
-                        `文件大小: ${fileSizeMB.toFixed(2)}MB
+                    const message = `文件大小: ${fileSizeMB.toFixed(2)}MB
 
 ` +
-                        `文件较大，是否使用高级读取模式？
+                                  `文件较大，是否使用高级读取模式？
+
 ` +
-                        `- 点击"确定"：使用高级模式（可指定时间戳和读取大小）
+                                  `- 点击"确定"：使用高级模式（可指定时间戳和读取大小）
 ` +
-                        `- 点击"取消"：尝试直接打开整个文件（可能较慢）`
-                    );
+                                  `- 点击"取消"：尝试直接打开整个文件（可能较慢）`;
+                    
+                    const useAdvanced = await showConfirmDialog(message, '大文件检测');
                     
                     if (useAdvanced) {
                         showLargeFileDialog(filePath);

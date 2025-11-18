@@ -128,8 +128,9 @@ ipcMain.handle('dialog:openFile', async () => {
 
     if (!result.canceled && result.filePaths.length > 0) {
         const filePath = result.filePaths[0];
-
-        return await doOpenFile(filePath);
+        
+        // 只返回文件路径，让渲染进程决定如何打开（支持大文件检测）
+        return { filePath };
     }
     return null;
 });
@@ -417,7 +418,7 @@ function normalizeUserTimestamp(userInput) {
     const input = userInput.trim();
     
     // UE格式: 11.04-19.19.39 或 11.04-19.19
-    const uePattern = /^(\d{2})\.(\d{2})-(\d{2})\.(\d{2})(?:\.(\d{2}))?$/;
+    const uePattern = /^(\d{2})\.(\d{2}).(\d{2})\.(\d{2})(?:\.(\d{2}))?$/;
     const ueMatch = input.match(uePattern);
     
     if (ueMatch) {
