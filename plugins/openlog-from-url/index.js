@@ -19,15 +19,21 @@ module.exports = function (pluginBasePath) {
 
             console.log('[OpenLogFromUrl] Processing file:', filePath);
             if (this.isCompressedFile(filePath)) {
+                const fs = require('fs');
                 const cacheDir = require('path').join(path.dirname(filePath), path.basename(filePath, path.extname(filePath)));
 
-                //uncompress file to current directory
-                const AdmZip = require('adm-zip');
-                const zip = new AdmZip(filePath);
-                zip.extractAllTo(cacheDir, true);
+                // 使用智能解压方法
+                fs.mkdirSync(cacheDir, { recursive: true });
+                
+                try {
+                    await this.extractZipWithFallback(filePath, cacheDir);
+                } catch (error) {
+                    console.error(`Extraction failed: ${error.message}`);
+                    await this.api.showErrorMessage(`Failed to extract ZIP file`, { modal: true, detail: error.message });
+                    return filePath;
+                }
 
                 // 获取解压后的文件列表
-                const fs = require('fs');
                 const filesArray = [];
                 const walkDir = (dir) => {
                     const files = fs.readdirSync(dir);
@@ -79,6 +85,118 @@ module.exports = function (pluginBasePath) {
             return ['.zip', '.tar', '.gz', '.tar.gz', '.7z', '.zip'].includes(ext);
         }
 
+        /**
+         * 智能解压 ZIP 文件，自动选择最佳方法
+         * 优先使用 adm-zip（快速），如果失败则自动切换到流式解压
+         * @param {string} zipFilePath - ZIP 文件路径
+         * @param {string} targetDir - 目标解压目录
+         */
+        async extractZipWithFallback(zipFilePath, targetDir) {
+            const fs = require('fs');
+            const stats = fs.statSync(zipFilePath);
+            const fileSizeInMB = stats.size / (1024 * 1024);
+            console.log(`ZIP file size: ${fileSizeInMB.toFixed(2)} MB`);
+            
+            try {
+                // 优先尝试使用 adm-zip（性能更好）
+                console.log(`Attempting fast extraction with adm-zip...`);
+                const AdmZip = require('adm-zip');
+                const zip = new AdmZip(zipFilePath);
+                zip.extractAllTo(targetDir, true);
+                console.log(`Fast extraction successful`);
+            } catch (error) {
+                // 如果 adm-zip 失败（通常是因为文件太大），自动切换到流式解压
+                if (error.message.includes('Buffer') || error.message.includes('memory')) {
+                    console.log(`Fast extraction failed (${error.message}), switching to streaming extraction...`);
+                    await this.extractLargeZip(zipFilePath, targetDir);
+                } else {
+                    // 其他错误直接抛出
+                    throw error;
+                }
+            }
+        }
+
+        /**
+         * 使用流式方法解压大型 ZIP 文件
+         * @param {string} zipFilePath - ZIP 文件路径
+         * @param {string} targetDir - 目标解压目录
+         */
+        async extractLargeZip(zipFilePath, targetDir) {
+            const fs = require('fs');
+            const path = require('path');
+            const { promisify } = require('util');
+            const stream = require('stream');
+            const pipeline = promisify(stream.pipeline);
+            
+            return new Promise((resolve, reject) => {
+                const yauzl = require('yauzl');
+                
+                yauzl.open(zipFilePath, { lazyEntries: true }, (err, zipfile) => {
+                    if (err) {
+                        reject(err);
+                        return;
+                    }
+                    
+                    let extractedCount = 0;
+                    let totalEntries = 0;
+                    
+                    zipfile.on('entry', async (entry) => {
+                        totalEntries++;
+                        const fullPath = path.join(targetDir, entry.fileName);
+                        
+                        // 如果是目录
+                        if (/\/$/.test(entry.fileName)) {
+                            fs.mkdirSync(fullPath, { recursive: true });
+                            zipfile.readEntry();
+                            return;
+                        }
+                        
+                        // 确保父目录存在
+                        fs.mkdirSync(path.dirname(fullPath), { recursive: true });
+                        
+                        // 解压文件
+                        zipfile.openReadStream(entry, (err, readStream) => {
+                            if (err) {
+                                reject(err);
+                                return;
+                            }
+                            
+                            const writeStream = fs.createWriteStream(fullPath);
+                            
+                            readStream.on('end', () => {
+                                extractedCount++;
+                                if (extractedCount % 10 === 0) {
+                                    console.log(`Extracted ${extractedCount} files...`);
+                                }
+                                zipfile.readEntry();
+                            });
+                            
+                            readStream.on('error', (err) => {
+                                reject(err);
+                            });
+                            
+                            writeStream.on('error', (err) => {
+                                reject(err);
+                            });
+                            
+                            readStream.pipe(writeStream);
+                        });
+                    });
+                    
+                    zipfile.on('end', () => {
+                        console.log(`Extraction complete. Extracted ${extractedCount} files.`);
+                        resolve();
+                    });
+                    
+                    zipfile.on('error', (err) => {
+                        reject(err);
+                    });
+                    
+                    zipfile.readEntry();
+                });
+            });
+        }
+
         async onActivate(context) {
             console.log(`OpenLogFromUrl onActivate`);
 
@@ -100,6 +218,8 @@ module.exports = function (pluginBasePath) {
             console.log(`Input url: ${url}`);
 
             try {
+                const fs = require('fs');
+                
                 // 计算 URL 的 MD5 哈希
                 const md5Hash = require('crypto').createHash('md5').update(url).digest('hex');
                 console.log(`Calculated MD5 hash: ${md5Hash}`);
@@ -111,7 +231,6 @@ module.exports = function (pluginBasePath) {
                 // 检查缓存是否存在且未过期（1天内）
                 let shouldDownload = true;
                 try {
-                    const fs = require('fs');
                     const stats = fs.statSync(cacheDir);
                     const lastModified = new Date(stats.mtime);
                     const now = new Date();
@@ -141,7 +260,6 @@ module.exports = function (pluginBasePath) {
                     }
 
                     // 检查文件是否为 ZIP
-                    const fs = require('fs');
                     const fileBuffer = fs.readFileSync(zipFilePath);
                     if (!fileBuffer.slice(0, 4).equals(Buffer.from([0x50, 0x4B, 0x03, 0x04]))) {
                         console.error(`Downloaded file is not a ZIP archive.`);
@@ -152,12 +270,14 @@ module.exports = function (pluginBasePath) {
 
                     // 解压文件到 MD5 目录
                     console.log(`Extracting ZIP to ${cacheDir}...`);
-                    const AdmZip = require('adm-zip');
-                    const zip = new AdmZip(zipFilePath);
+                    
                     try {
                         // 确保缓存目录存在
                         fs.mkdirSync(cacheDir, { recursive: true });
-                        zip.extractAllTo(cacheDir, true);
+                        
+                        // 尝试使用 adm-zip 解压，如果失败则自动切换到流式解压
+                        await this.extractZipWithFallback(zipFilePath, cacheDir);
+                        
                         console.log(`Extraction successful to ${cacheDir}`);
                     } catch (error) {
                         console.error(`Extraction failed: ${error.message}`);
@@ -167,7 +287,6 @@ module.exports = function (pluginBasePath) {
                 }
 
                 // 获取解压后的文件列表
-                const fs = require('fs');
                 const filesArray = [];
                 const walkDir = (dir) => {
                     const files = fs.readdirSync(dir);

@@ -128,8 +128,9 @@ ipcMain.handle('dialog:openFile', async () => {
 
     if (!result.canceled && result.filePaths.length > 0) {
         const filePath = result.filePaths[0];
-
-        return await doOpenFile(filePath);
+        
+        // 只返回文件路径，让渲染进程决定如何打开（支持大文件检测）
+        return { filePath };
     }
     return null;
 });
@@ -181,11 +182,291 @@ ipcMain.handle('file:read', async (event, filePath) => {
 
 ipcMain.handle('file:stats', async (event, filePath) => {
     try {
+        if (!filePath) {
+            throw new Error('文件路径不能为空');
+        }
         return await fs.stat(filePath);
     } catch (error) {
         throw new Error(`获取文件信息失败: ${error.message}`);
     }
 });
+
+// 根据时间戳读取大文件日志
+ipcMain.handle('file:read-by-timestamp', async (event, { filePath, timestamp, sizeMB = 100 }) => {
+    try {
+        log('file:read-by-timestamp called with:', { filePath, timestamp, sizeMB });
+        
+        // 验证参数
+        if (!filePath) {
+            throw new Error('文件路径不能为空');
+        }
+        
+        const fsSync = require('fs');
+        const stats = await fs.stat(filePath);
+        const fileSize = stats.size;
+        const readSize = sizeMB * 1024 * 1024; // 转换为字节
+        
+        log(`File size: ${(fileSize / 1024 / 1024).toFixed(2)}MB, Read size: ${sizeMB}MB`);
+        
+        // 如果文件小于指定大小，直接读取整个文件
+        if (fileSize <= readSize) {
+            const content = await fs.readFile(filePath, 'utf8');
+            const lines = content.split(/\r?\n/);
+            return {
+                content,
+                startLine: 1,
+                totalLines: lines.length,
+                fileSize,
+                readSize: fileSize,
+                foundTimestamp: false
+            };
+        }
+        
+        // 使用二分查找定位时间戳位置
+        let position = 0;
+        let foundPosition = -1;
+        
+        if (timestamp) {
+            foundPosition = await findTimestampPosition(filePath, timestamp, fileSize);
+            if (foundPosition >= 0) {
+                position = foundPosition;
+            }
+        }
+        
+        // 确保不会超出文件范围
+        const actualReadSize = Math.min(readSize, fileSize - position);
+        
+        // 从找到的位置开始读取指定大小的内容
+        const buffer = Buffer.alloc(actualReadSize);
+        const fd = fsSync.openSync(filePath, 'r');
+        
+        try {
+            fsSync.readSync(fd, buffer, 0, actualReadSize, position);
+            let content = buffer.toString('utf8');
+            
+            // 如果不是从文件开头读取，找到第一个完整的行
+            if (position > 0) {
+                const firstNewline = content.indexOf('\n');
+                if (firstNewline !== -1) {
+                    content = content.substring(firstNewline + 1);
+                }
+            }
+            
+            // 计算起始行号
+            let startLine = 1;
+            if (position > 0) {
+                const beforeBuffer = Buffer.alloc(Math.min(position, 10 * 1024 * 1024)); // 最多读取前10MB来计算行号
+                fsSync.readSync(fd, beforeBuffer, 0, beforeBuffer.length, Math.max(0, position - beforeBuffer.length));
+                const beforeContent = beforeBuffer.toString('utf8');
+                startLine = (beforeContent.match(/\n/g) || []).length + 1;
+            }
+            
+            const totalLines = content.split(/\r?\n/).length;
+            
+            return {
+                content,
+                startLine,
+                totalLines,
+                fileSize,
+                readSize: actualReadSize,
+                foundTimestamp: foundPosition >= 0,
+                readPosition: position
+            };
+        } finally {
+            fsSync.closeSync(fd);
+        }
+    } catch (error) {
+        logError('Error reading file by timestamp:', error);
+        throw new Error(`读取文件失败: ${error.message}`);
+    }
+});
+
+// 辅助函数：使用二分查找定位时间戳
+async function findTimestampPosition(filePath, targetTimestamp, fileSize) {
+    const fsSync = require('fs');
+    const fd = fsSync.openSync(filePath, 'r');
+    
+    try {
+        // 规范化用户输入的时间戳
+        const normalizedTimestamp = normalizeUserTimestamp(targetTimestamp);
+        if (!normalizedTimestamp) {
+            console.log('Invalid timestamp input');
+            return -1;
+        }
+        
+        // 解析目标时间戳
+        const targetDate = parseTimestamp(normalizedTimestamp);
+        if (!targetDate) {
+            console.log('Invalid timestamp format:', normalizedTimestamp);
+            return -1;
+        }
+        
+        const targetTime = targetDate.getTime();
+        
+        let left = 0;
+        let right = fileSize;
+        let bestPosition = -1;
+        const chunkSize = 8192; // 8KB chunks for searching
+        
+        console.log(`Searching for timestamp: ${normalizedTimestamp} (${targetTime})`);
+        
+        // 二分查找
+        while (left < right) {
+            const mid = Math.floor((left + right) / 2);
+            
+            // 读取mid位置附近的内容
+            const readStart = Math.max(0, mid - chunkSize);
+            const readLength = Math.min(chunkSize * 2, fileSize - readStart);
+            const buffer = Buffer.alloc(readLength);
+            
+            fsSync.readSync(fd, buffer, 0, readLength, readStart);
+            const content = buffer.toString('utf8');
+            
+            // 查找这段内容中的时间戳
+            const timestamp = extractTimestamp(content);
+            
+            if (!timestamp) {
+                // 如果找不到时间戳，向右搜索
+                left = mid + 1;
+                continue;
+            }
+            
+            const currentDate = parseTimestamp(timestamp);
+            if (!currentDate) {
+                left = mid + 1;
+                continue;
+            }
+            
+            const currentTime = currentDate.getTime();
+            
+            if (currentTime < targetTime) {
+                left = mid + 1;
+            } else if (currentTime > targetTime) {
+                right = mid;
+            } else {
+                // 找到精确匹配
+                bestPosition = mid;
+                console.log(`Found exact match at position: ${mid}`);
+                break;
+            }
+            
+            // 记录最接近的位置
+            if (currentTime <= targetTime) {
+                bestPosition = mid;
+            }
+        }
+        
+        // 如果找到了位置，回退到该行的开始
+        if (bestPosition >= 0) {
+            const buffer = Buffer.alloc(Math.min(chunkSize, bestPosition));
+            const readStart = Math.max(0, bestPosition - buffer.length);
+            fsSync.readSync(fd, buffer, 0, buffer.length, readStart);
+            const content = buffer.toString('utf8');
+            const lastNewline = content.lastIndexOf('\n');
+            
+            if (lastNewline !== -1) {
+                bestPosition = readStart + lastNewline + 1;
+            } else {
+                bestPosition = readStart;
+            }
+            
+            console.log(`Final position (line start): ${bestPosition}`);
+        } else {
+            console.log('Timestamp not found, will read from beginning');
+        }
+        
+        return bestPosition;
+    } finally {
+        fsSync.closeSync(fd);
+    }
+}
+
+// 辅助函数：从文本中提取时间戳
+function extractTimestamp(text) {
+    // 支持多种常见的日志时间戳格式
+    const patterns = [
+        // UE格式: [2025.11.04-19.19.39:123]
+        /\[(\d{4}\.\d{2}\.\d{2}-\d{2}\.\d{2}\.\d{2}(?::\d{3})?)\]/,
+        // ISO 8601: 2024-01-15T10:30:45.123Z
+        /(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?(?:Z|[+-]\d{2}:\d{2})?)/,
+        // 标准格式: 2024-01-15 10:30:45
+        /(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})/,
+        // 带毫秒: 2024-01-15 10:30:45.123
+        /(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}\.\d{3})/,
+        // 斜杠分隔: 2024/01/15 10:30:45
+        /(\d{4}\/\d{2}\/\d{2}\s+\d{2}:\d{2}:\d{2})/,
+        // 方括号包围: [2024-01-15 10:30:45]
+        /\[(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\]/,
+    ];
+    
+    for (const pattern of patterns) {
+        const match = text.match(pattern);
+        if (match) {
+            return match[1];
+        }
+    }
+    
+    return null;
+}
+
+// 辅助函数：将用户输入的时间戳转换为完整格式
+function normalizeUserTimestamp(userInput) {
+    if (!userInput || !userInput.trim()) {
+        return null;
+    }
+    
+    const input = userInput.trim();
+    
+    // UE格式: 11.04-19.19.39 或 11.04-19.19
+    const uePattern = /^(\d{2})\.(\d{2}).(\d{2})\.(\d{2})(?:\.(\d{2}))?$/;
+    const ueMatch = input.match(uePattern);
+    
+    if (ueMatch) {
+        const currentYear = new Date().getFullYear();
+        const month = ueMatch[1];
+        const day = ueMatch[2];
+        const hour = ueMatch[3];
+        const minute = ueMatch[4];
+        const second = ueMatch[5] || '00'; // 如果没有秒，默认为00
+        
+        // 返回完整的UE格式时间戳
+        return `${currentYear}.${month}.${day}-${hour}.${minute}.${second}`;
+    }
+    
+    // 如果已经是完整格式，直接返回
+    return input;
+}
+
+// 辅助函数：将时间戳转换为Date对象
+function parseTimestamp(timestamp) {
+    if (!timestamp) {
+        return null;
+    }
+    
+    // UE格式: 2025.11.04-19.19.39
+    const uePattern = /^(\d{4})\.(\d{2})\.(\d{2})-(\d{2})\.(\d{2})\.(\d{2})(?::(\d{3}))?$/;
+    const ueMatch = timestamp.match(uePattern);
+    
+    if (ueMatch) {
+        const year = parseInt(ueMatch[1]);
+        const month = parseInt(ueMatch[2]) - 1; // JavaScript月份从0开始
+        const day = parseInt(ueMatch[3]);
+        const hour = parseInt(ueMatch[4]);
+        const minute = parseInt(ueMatch[5]);
+        const second = parseInt(ueMatch[6]);
+        const ms = ueMatch[7] ? parseInt(ueMatch[7]) : 0;
+        
+        return new Date(year, month, day, hour, minute, second, ms);
+    }
+    
+    // 尝试标准格式解析
+    const date = new Date(timestamp);
+    if (!isNaN(date.getTime())) {
+        return date;
+    }
+    
+    return null;
+}
 
 // 处理重新加载当前文件的请求
 ipcMain.handle('file:reload', async () => {

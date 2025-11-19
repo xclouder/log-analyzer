@@ -1,6 +1,6 @@
 {
   "name": "log-analyzer",
-  "version": "1.1.16",
+  "version": "1.1.17",
   "description": "A powerful log analysis tool",
   "main": "main.js",
   "scripts": {
@@ -20,7 +20,8 @@
     "adm-zip": "^0.5.10",
     "electron-updater": "^6.1.4",
     "log4js": "^6.9.1",
-    "monaco-editor": "^0.40.0"
+    "monaco-editor": "^0.40.0",
+    "yauzl": "^2.10.0"
   },
   "devDependencies": {
     "electron": "^25.3.1",
@@ -53,9 +54,17 @@
         "filter": [
           "**/*"
         ]
-      }, {
+      },
+      {
         "from": "node_modules/adm-zip",
         "to": "node_modules/adm-zip",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
+        "from": "node_modules/yauzl",
+        "to": "node_modules/yauzl",
         "filter": [
           "**/*"
         ]

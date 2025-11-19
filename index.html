@@ -305,6 +305,198 @@
             width: 5px !important;
             margin-left: 3px;
         }
+
+        /* 下载进度条样式 */
+        .download-progress-container {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background-color: #2d2d2d;
+            border: 1px solid #404040;
+            border-radius: 8px;
+            padding: 15px;
+            min-width: 300px;
+            max-width: 400px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+            z-index: 10000;
+            display: none;
+        }
+
+        .download-progress-container.active {
+            display: block;
+        }
+
+        .download-progress-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .download-progress-title {
+            color: #e0e0e0;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .download-progress-close {
+            background: none;
+            border: none;
+            color: #888;
+            cursor: pointer;
+            font-size: 18px;
+            padding: 0;
+            width: 20px;
+            height: 20px;
+            line-height: 20px;
+        }
+
+        .download-progress-close:hover {
+            color: #fff;
+        }
+
+        .download-progress-bar {
+            width: 100%;
+            height: 8px;
+            background-color: #404040;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-bottom: 8px;
+        }
+
+        .download-progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #1565C0, #42A5F5);
+            border-radius: 4px;
+            transition: width 0.3s ease;
+            width: 0%;
+        }
+
+        .download-progress-text {
+            color: #b0b0b0;
+            font-size: 12px;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .download-progress-url {
+            color: #888;
+            font-size: 11px;
+            margin-top: 5px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        /* 大文件读取对话框样式 */
+        .large-file-dialog {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: #2d2d2d;
+            border: 1px solid #404040;
+            border-radius: 8px;
+            padding: 20px;
+            min-width: 400px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.7);
+            z-index: 10001;
+            display: none;
+        }
+
+        .large-file-dialog.active {
+            display: block;
+        }
+
+        .large-file-dialog-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 10000;
+            display: none;
+        }
+
+        .large-file-dialog-overlay.active {
+            display: block;
+        }
+
+        .large-file-dialog h3 {
+            color: #e0e0e0;
+            margin: 0 0 15px 0;
+            font-size: 16px;
+        }
+
+        .large-file-dialog-content {
+            margin-bottom: 20px;
+        }
+
+        .large-file-dialog-field {
+            margin-bottom: 15px;
+        }
+
+        .large-file-dialog-field label {
+            display: block;
+            color: #b0b0b0;
+            font-size: 13px;
+            margin-bottom: 5px;
+        }
+
+        .large-file-dialog-field input {
+            width: 100%;
+            background-color: #404040;
+            border: 1px solid #555;
+            color: #e0e0e0;
+            padding: 8px;
+            border-radius: 4px;
+            font-size: 13px;
+            box-sizing: border-box;
+        }
+
+        .large-file-dialog-field input:focus {
+            outline: none;
+            border-color: #1565C0;
+        }
+
+        .large-file-dialog-buttons {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+
+        .large-file-dialog-button {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+        }
+
+        .large-file-dialog-button.primary {
+            background-color: #1565C0;
+            color: white;
+        }
+
+        .large-file-dialog-button.primary:hover {
+            background-color: #1976D2;
+        }
+
+        .large-file-dialog-button.secondary {
+            background-color: #404040;
+            color: #e0e0e0;
+        }
+
+        .large-file-dialog-button.secondary:hover {
+            background-color: #505050;
+        }
+
+        .file-info-text {
+            color: #888;
+            font-size: 12px;
+            margin-top: 5px;
+        }
     </style>
     <link rel="stylesheet" href="command-palette.css">
     <link href="kendo-ui/default-main-dark.css" rel="stylesheet" />
@@ -341,6 +533,58 @@
         <input type="text" id="commandInput" class="command-palette-input" placeholder="输入命令...">
         <div id="commandList" class="command-list"></div>
     </div>
+    
+    <!-- 下载进度显示 -->
+    <div id="downloadProgress" class="download-progress-container">
+        <div class="download-progress-header">
+            <span class="download-progress-title">下载中...</span>
+            <button class="download-progress-close" onclick="hideDownloadProgress()">×</button>
+        </div>
+        <div class="download-progress-bar">
+            <div id="downloadProgressFill" class="download-progress-fill"></div>
+        </div>
+        <div class="download-progress-text">
+            <span id="downloadProgressPercent">0%</span>
+            <span id="downloadProgressSize">0MB / 0MB</span>
+        </div>
+        <div id="downloadProgressUrl" class="download-progress-url"></div>
+    </div>
+    
+    <!-- 大文件读取对话框 -->
+    <div id="largeFileDialogOverlay" class="large-file-dialog-overlay"></div>
+    <div id="largeFileDialog" class="large-file-dialog">
+        <h3>读取大文件</h3>
+        <div class="large-file-dialog-content">
+            <div class="large-file-dialog-field">
+                <label>时间戳（可选）</label>
+                <input type="text" id="timestampInput" placeholder="例如: 11.04-19.19.39 或 11.04-19.19" onkeydown="if(event.key==='Enter')confirmReadLargeFile()">
+                <div class="file-info-text">UE格式: MM.DD-HH.mm.ss 或 MM.DD-HH.mm（可省略秒）</div>
+            </div>
+            <div class="large-file-dialog-field">
+                <label>读取大小（MB）</label>
+                <input type="number" id="readSizeInput" value="100" min="1" max="1000" onkeydown="if(event.key==='Enter')confirmReadLargeFile()">
+                <div class="file-info-text">默认100MB，最大1000MB</div>
+            </div>
+        </div>
+        <div class="large-file-dialog-buttons">
+            <button class="large-file-dialog-button secondary" onclick="closeLargeFileDialog()">取消</button>
+            <button class="large-file-dialog-button primary" onclick="confirmReadLargeFile()">读取</button>
+        </div>
+    </div>
+    
+    <!-- 自定义确认对话框 -->
+    <div id="confirmDialogOverlay" class="large-file-dialog-overlay"></div>
+    <div id="confirmDialog" class="large-file-dialog">
+        <h3 id="confirmDialogTitle">确认</h3>
+        <div class="large-file-dialog-content">
+            <div id="confirmDialogMessage" style="color: #e0e0e0; font-size: 14px; line-height: 1.6; white-space: pre-wrap;"></div>
+        </div>
+        <div class="large-file-dialog-buttons">
+            <button class="large-file-dialog-button secondary" onclick="closeConfirmDialog(false)">取消</button>
+            <button class="large-file-dialog-button primary" onclick="closeConfirmDialog(true)">确定</button>
+        </div>
+    </div>
+    
     <script src="command-palette.js"></script>
 
     <script src="node_modules/monaco-editor/min/vs/loader.js"></script>
@@ -449,14 +693,17 @@
 
                 const file = files[0];
                 console.log('Dropped file:', file);
+                
+                // 确保文件路径存在
+                const filePath = file.path;
+                if (!filePath) {
+                    console.error('File path is null or undefined:', file);
+                    alert('无法获取文件路径，请尝试使用"打开文件"菜单');
+                    return;
+                }
+                
                 try {
-                    const { filePath, content } = await window.electronAPI.openFile(file.path);
-                    if (content !== null) {
-                        onDidOpenFile(filePath, content);
-                    }
-                    else {
-                        showFileOpenError(filePath, '文件可能太大，无法打开');
-                    }
+                    await checkAndOpenFile(filePath);
                 } catch (err) {
                     console.error('Error reading file:', err);
                     alert('读取文件失败: ' + err.message);
@@ -640,12 +887,8 @@
         });
 
         window.electronAPI.onPluginOpenFile(async (event, filepath) => {
-            const result = await window.electronAPI.openFile(filepath);
-            if (result) {
-                const { content, filePath } = result;
-                editor.setValue(content);
-                updateFileInfo(filePath);
-            }
+            // 使用统一的 checkAndOpenFile 函数，支持大文件检测
+            await checkAndOpenFile(filepath);
         });
 
         // 初始化Kendo ColorPicker
@@ -1199,24 +1442,16 @@
             try {
                 const result = await window.electronAPI.dialogOpenFile();
 
-                if (result) {
-                    const { content, filePath } = result;
-
-                    if (content !== null) {
-                        onDidOpenFile(filePath, content);
-                    }
-                    else {
-                        showFileOpenError(filePath, `文件可能太大，无法打开`);
-                    }
-                } else {
-                    console.error(`showOpenFileDialog error: ${result}`);
-                    alert(`showOpenFileDialog error: ${result}`)
+                if (result && result.filePath) {
+                    // 使用统一的 checkAndOpenFile 函数，支持大文件检测
+                    await checkAndOpenFile(result.filePath);
                 }
             } catch (err) {
                 console.error('Error opening file dialog:', err);
                 alert(`Error opening file dialog: ${err.message || '未知错误'}`);
             }
         }
+
 
         function updateFileInfo(filePath) {
             currentFilePath = filePath;
@@ -1240,6 +1475,280 @@
 
             filterToggle.classList.toggle('collapsed');
             filterSection.classList.toggle('collapsed');
+        }
+
+        // 下载进度相关函数
+        let currentDownloadUrl = '';
+        
+        function showDownloadProgress(info) {
+            const container = document.getElementById('downloadProgress');
+            const fill = document.getElementById('downloadProgressFill');
+            const percent = document.getElementById('downloadProgressPercent');
+            const size = document.getElementById('downloadProgressSize');
+            const url = document.getElementById('downloadProgressUrl');
+            
+            container.classList.add('active');
+            fill.style.width = info.progress + '%';
+            percent.textContent = info.progress + '%';
+            
+            const downloadedMB = (info.downloadedSize / 1024 / 1024).toFixed(2);
+            const totalMB = (info.totalSize / 1024 / 1024).toFixed(2);
+            size.textContent = `${downloadedMB}MB / ${totalMB}MB`;
+            
+            url.textContent = info.url;
+            currentDownloadUrl = info.url;
+        }
+        
+        function hideDownloadProgress() {
+            const container = document.getElementById('downloadProgress');
+            container.classList.remove('active');
+            currentDownloadUrl = '';
+        }
+        
+        function showDownloadComplete(info) {
+            const container = document.getElementById('downloadProgress');
+            const title = container.querySelector('.download-progress-title');
+            title.textContent = '下载完成';
+            
+            setTimeout(() => {
+                hideDownloadProgress();
+            }, 3000);
+        }
+        
+        function showDownloadError(info) {
+            const container = document.getElementById('downloadProgress');
+            const title = container.querySelector('.download-progress-title');
+            title.textContent = '下载失败: ' + info.error;
+            
+            setTimeout(() => {
+                hideDownloadProgress();
+            }, 5000);
+        }
+        
+        // 监听下载进度事件
+        if (window.electronAPI.onDownloadProgress) {
+            window.electronAPI.onDownloadProgress((event, info) => {
+                showDownloadProgress(info);
+            });
+        }
+        
+        if (window.electronAPI.onDownloadComplete) {
+            window.electronAPI.onDownloadComplete((event, info) => {
+                showDownloadComplete(info);
+            });
+        }
+        
+        if (window.electronAPI.onDownloadError) {
+            window.electronAPI.onDownloadError((event, info) => {
+                showDownloadError(info);
+            });
+        }
+        
+        // 自定义确认对话框
+        let confirmDialogResolve = null;
+        
+        function showConfirmDialog(message, title = '确认') {
+            return new Promise((resolve) => {
+                confirmDialogResolve = resolve;
+                
+                const dialog = document.getElementById('confirmDialog');
+                const overlay = document.getElementById('confirmDialogOverlay');
+                const titleElement = document.getElementById('confirmDialogTitle');
+                const messageElement = document.getElementById('confirmDialogMessage');
+                
+                titleElement.textContent = title;
+                messageElement.textContent = message;
+                
+                overlay.classList.add('active');
+                dialog.classList.add('active');
+                
+                // 添加 ESC 键关闭对话框
+                const escHandler = (e) => {
+                    if (e.key === 'Escape') {
+                        closeConfirmDialog(false);
+                        document.removeEventListener('keydown', escHandler);
+                    } else if (e.key === 'Enter') {
+                        closeConfirmDialog(true);
+                        document.removeEventListener('keydown', escHandler);
+                    }
+                };
+                document.addEventListener('keydown', escHandler);
+            });
+        }
+        
+        function closeConfirmDialog(result) {
+            const dialog = document.getElementById('confirmDialog');
+            const overlay = document.getElementById('confirmDialogOverlay');
+            
+            dialog.classList.remove('active');
+            overlay.classList.remove('active');
+            
+            if (confirmDialogResolve) {
+                confirmDialogResolve(result);
+                confirmDialogResolve = null;
+            }
+        }
+        
+        // 大文件读取相关函数
+        let pendingLargeFilePath = null;
+        
+        function showLargeFileDialog(filePath) {
+            console.log('showLargeFileDialog called with:', filePath);
+            
+            if (!filePath) {
+                console.error('showLargeFileDialog: filePath is null or undefined');
+                alert('文件路径无效，无法打开大文件对话框');
+                return;
+            }
+
+            
+            pendingLargeFilePath = filePath;
+            const dialog = document.getElementById('largeFileDialog');
+            const overlay = document.getElementById('largeFileDialogOverlay');
+
+            // 先显示对话框
+            overlay.classList.add('active');
+            dialog.classList.add('active');
+            
+            // 重置输入
+            const timestampInput = document.getElementById('timestampInput');
+            const readSizeInput = document.getElementById('readSizeInput');
+            
+            timestampInput.value = '';
+            readSizeInput.value = '100';
+            
+            
+            // 使用多重策略确保输入框获得焦点
+            requestAnimationFrame(() => {
+                setTimeout(() => {
+                    // 先让窗口失焦再聚焦，触发焦点刷新
+                    setTimeout(() => {
+                        window.blur();
+                        window.focus();
+                        dialog.blur();
+                        dialog.focus();
+                        // 聚焦到输入框
+                        timestampInput.focus();
+                        timestampInput.click();
+                    }, 50);
+                }, 150);
+            });
+            
+            // 添加 ESC 键关闭对话框
+            const escHandler = (e) => {
+                if (e.key === 'Escape') {
+                    closeLargeFileDialog();
+                    document.removeEventListener('keydown', escHandler);
+                }
+            };
+            document.addEventListener('keydown', escHandler);
+            
+            console.log('Large file dialog opened for:', filePath);
+        }
+        
+        function closeLargeFileDialog() {
+            const dialog = document.getElementById('largeFileDialog');
+            const overlay = document.getElementById('largeFileDialogOverlay');
+            
+            dialog.classList.remove('active');
+            overlay.classList.remove('active');
+            pendingLargeFilePath = null;
+        }
+        
+        async function confirmReadLargeFile() {
+            if (!pendingLargeFilePath) {
+                console.error('pendingLargeFilePath is null');
+                alert('文件路径丢失，请重新打开文件');
+                closeLargeFileDialog();
+                return;
+            }
+            
+            const timestamp = document.getElementById('timestampInput').value.trim();
+            const sizeMB = parseInt(document.getElementById('readSizeInput').value) || 100;
+            
+            try {
+                const filePath = pendingLargeFilePath;
+                closeLargeFileDialog();
+                
+                // 显示加载提示
+                const loadingMsg = `正在读取文件${timestamp ? ' (从时间戳: ' + timestamp + ')' : ''}...`;
+                console.log(loadingMsg);
+                console.log('Reading file:', filePath);
+                
+                const result = await window.electronAPI.readFileByTimestamp(
+                    filePath,
+                    timestamp || null,
+                    sizeMB
+                );
+                
+                console.log('Read result:', result);
+                
+                if (result && result.content) {
+                    // 使用保存的 filePath 而不是 pendingLargeFilePath（已被清空）
+                    onDidOpenFile(filePath, result.content);
+                    
+                    // 显示读取信息
+                    const infoMsg = `已读取 ${(result.readSize / 1024 / 1024).toFixed(2)}MB / ${(result.fileSize / 1024 / 1024).toFixed(2)}MB
+` +
+                                  `起始行: ${result.startLine}, 总行数: ${result.totalLines}
+` +
+                                  (result.foundTimestamp ? '✓ 找到时间戳位置' : (timestamp ? '✗ 未找到时间戳，从文件开头读取' : ''));
+                    
+                    console.log('File opened successfully');
+                    alert(infoMsg);
+                } else {
+                    console.error('Read result is invalid:', result);
+                    alert('读取文件失败：返回结果无效');
+                }
+            } catch (error) {
+                console.error('Error reading large file:', error);
+                alert('读取文件失败: ' + error.message);
+            }
+        }
+        
+        // 修改文件打开逻辑，检测大文件
+        async function checkAndOpenFile(filePath) {
+            try {
+                // 验证文件路径
+                if (!filePath) {
+                    throw new Error('文件路径为空');
+                }
+                
+                // 获取文件信息
+                const stats = await window.electronAPI.getFileStats(filePath);
+                const fileSizeMB = stats.size / 1024 / 1024;
+                
+                // 如果文件大于200MB，显示大文件读取对话框
+                if (fileSizeMB > 200) {
+                    const message = `文件大小: ${fileSizeMB.toFixed(2)}MB
+
+` +
+                                  `文件较大，是否使用高级读取模式？
+
+` +
+                                  `- 点击"确定"：使用高级模式（可指定时间戳和读取大小）
+` +
+                                  `- 点击"取消"：尝试直接打开整个文件（可能较慢）`;
+                    
+                    const useAdvanced = await showConfirmDialog(message, '大文件检测');
+                    
+                    if (useAdvanced) {
+                        showLargeFileDialog(filePath);
+                        return;
+                    }
+                }
+                
+                // 正常打开文件
+                const result = await window.electronAPI.openFile(filePath);
+                if (result && result.content !== null) {
+                    onDidOpenFile(result.filePath, result.content);
+                } else {
+                    showFileOpenError(filePath, '文件可能太大，无法打开');
+                }
+            } catch (error) {
+                console.error('Error opening file:', error);
+                alert('打开文件失败: ' + error.message);
+            }
         }
 
     </script>
