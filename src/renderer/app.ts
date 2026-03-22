@@ -37,14 +37,27 @@ interface FilterPattern {
 }
 
 // ─── Monaco initialization ────────────────────────────────────────────────────
+// Monaco loader.js is loaded dynamically to handle packaged vs dev paths.
+// In packaged builds, monaco is unpacked outside the asar.
 
-(window as any).require.config({ paths: { vs: '../../node_modules/monaco-editor/min/vs' } });
-(window as any).require(['vs/editor/editor.main'], function () {
-  registerUnrealLogLanguage();
-  createEditors();
-  setupDragAndDrop();
-  setupKeyboardShortcuts();
-});
+(function loadMonaco() {
+  const vsPath = (window as any).electronAPI.getMonacoVsPath();
+  const loaderScript = document.createElement('script');
+  loaderScript.src = vsPath + '/loader.js';
+  loaderScript.onload = function () {
+    (window as any).require.config({ paths: { vs: vsPath } });
+    (window as any).require(['vs/editor/editor.main'], function () {
+      registerUnrealLogLanguage();
+      createEditors();
+      setupDragAndDrop();
+      setupKeyboardShortcuts();
+    });
+  };
+  loaderScript.onerror = function () {
+    console.error('Failed to load Monaco loader from:', vsPath + '/loader.js');
+  };
+  document.head.appendChild(loaderScript);
+})();
 
 function registerUnrealLogLanguage(): void {
   monaco.languages.register({ id: 'unreallog' });

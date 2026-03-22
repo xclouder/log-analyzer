@@ -7,6 +7,7 @@
  * Security: contextIsolation=true, nodeIntegration=false (enforced in main.ts).
  */
 
+import * as path from 'path';
 import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron';
 import {
   IPC_FILE_OPEN,
@@ -49,9 +50,22 @@ import {
   IPC_TOGGLE_LOGGING,
 } from '../shared/ipc-channels';
 
+// ── Compute resource paths for renderer ────────────────────────────────────────
+// In dev, resources are relative to the project root.
+// In packaged builds, monaco is unpacked outside the asar at app.asar.unpacked/.
+// The preload script is at dist/main/main/preload.js → project root is ../../..
+const projectRoot = path.join(__dirname, '..', '..', '..');
+const isPackaged = projectRoot.includes('app.asar');
+const monacoVsPath = isPackaged
+  ? path.join(projectRoot.replace('app.asar', 'app.asar.unpacked'), 'node_modules', 'monaco-editor', 'min', 'vs')
+  : path.join(projectRoot, 'node_modules', 'monaco-editor', 'min', 'vs');
+
 type Callback = (event: IpcRendererEvent, ...args: any[]) => void;
 
 contextBridge.exposeInMainWorld('electronAPI', {
+  // ── Resource paths (for Monaco etc.) ─────────────────────────────────────
+  getMonacoVsPath: () => monacoVsPath,
+  isPackaged: () => isPackaged,
   // ── File operations ────────────────────────────────────────────────────────
   openFile: (filePath: string) => ipcRenderer.invoke(IPC_FILE_OPEN, filePath),
   reloadCurrentFile: () => ipcRenderer.invoke(IPC_FILE_RELOAD),

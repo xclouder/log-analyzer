@@ -239,9 +239,8 @@ export class PluginAPIImpl implements PluginAPI {
     win.setMenu(null);
 
     // editor.html is in src/renderer/ (not compiled by TS)
-    // __dirname = dist/main/main/ → project root is ../../..
     const editorHtmlPath = app.isPackaged
-      ? path.join(process.resourcesPath, 'app', 'src', 'renderer', 'editor.html')
+      ? path.join(app.getAppPath(), 'src', 'renderer', 'editor.html')
       : path.join(__dirname, '..', '..', '..', 'src', 'renderer', 'editor.html');
     win.loadFile(editorHtmlPath);
 

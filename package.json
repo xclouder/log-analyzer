@@ -57,25 +57,33 @@
     "directories": {
       "output": "dist-build"
     },
+    "files": [
+      "dist/**/*",
+      "src/renderer/**/*.html",
+      "src/renderer/**/*.css",
+      "src/plugins/**/*",
+      "kendo-ui/**/*",
+      "node_modules/**/*",
+      "package.json",
+      "!**/node_modules/*/{CHANGELOG.md,README.md,README,readme.md,readme}",
+      "!**/node_modules/*/{test,__tests__,tests,powered-test,example,examples}",
+      "!**/node_modules/*.d.ts",
+      "!**/node_modules/.bin",
+      "!**/*.{iml,o,hprof,orig,pyc,pyo,rbc,swp,csproj,sln,xproj}",
+      "!.editorconfig",
+      "!**/._*",
+      "!**/{.DS_Store,.git,.hg,.svn,CVS,RCS,SCCS,.gitignore,.gitattributes}",
+      "!**/{__pycache__,thumbs.db,.flowconfig,.idea,.vs,.nyc_output}",
+      "!**/{appveyor.yml,.travis.yml,circle.yml}",
+      "!**/{npm-debug.log,yarn.lock,.yarn-integrity,.yarn-metadata.json}"
+    ],
+    "asarUnpack": [
+      "node_modules/monaco-editor/min/**/*"
+    ],
     "extraResources": [
-      {
-        "from": "node_modules/monaco-editor/min",
-        "to": "monaco-editor/min",
-        "filter": ["**/*"]
-      },
       {
         "from": "src/plugins",
         "to": "plugins",
-        "filter": ["**/*"]
-      },
-      {
-        "from": "node_modules/adm-zip",
-        "to": "node_modules/adm-zip",
-        "filter": ["**/*"]
-      },
-      {
-        "from": "node_modules/yauzl",
-        "to": "node_modules/yauzl",
         "filter": ["**/*"]
       }
     ],
@@ -97,6 +105,12 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "runAfterFinish": true
+    },
+    "dmg": {
+      "contents": [
+        { "x": 410, "y": 190, "type": "link", "path": "/Applications" },
+        { "x": 130, "y": 190, "type": "file" }
+      ]
     }
   }
 }

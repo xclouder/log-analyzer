@@ -81,13 +81,24 @@ function createWindow(): void {
   });
 
   // HTML files are not compiled by TS — load directly from src/renderer/ in dev.
-  // In a packaged build electron-builder copies everything; adjust path accordingly.
+  // In packaged builds, HTML is inside app.asar at src/renderer/.
   const htmlPath = app.isPackaged
-    ? path.join(process.resourcesPath, 'app', 'src', 'renderer', 'index.html')
+    ? path.join(app.getAppPath(), 'src', 'renderer', 'index.html')
     : path.join(PROJECT_ROOT, 'src', 'renderer', 'index.html');
 
   mainWindow.loadFile(htmlPath);
   // mainWindow.webContents.openDevTools(); // Uncomment to open DevTools on start
+
+  // Capture renderer console output for debugging
+  mainWindow.webContents.on('console-message', (_event, level, message, line, sourceId) => {
+    const levelStr = ['VERBOSE', 'INFO', 'WARN', 'ERROR'][level] ?? 'UNKNOWN';
+    const logger = getLogger('Renderer');
+    if (level >= 2) {
+      logger.error(`[${levelStr}] ${message} (${sourceId}:${line})`);
+    } else {
+      logger.info(`[${levelStr}] ${message}`);
+    }
+  });
 
   createMenu();
   checkForUpdates();
@@ -394,7 +405,7 @@ function createMenu(): void {
             pluginManagerWindow.setMenu(null);
 
             const pmHtml = app.isPackaged
-              ? path.join(process.resourcesPath, 'app', 'src', 'renderer', 'plugin-manager.html')
+              ? path.join(app.getAppPath(), 'src', 'renderer', 'plugin-manager.html')
               : path.join(PROJECT_ROOT, 'src', 'renderer', 'plugin-manager.html');
             pluginManagerWindow.loadFile(pmHtml);
             pluginManagerWindow.on('closed', () => {
