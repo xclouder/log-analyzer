@@ -3,5 +3,7 @@ node_modules/
 .env
 *.log
 dist/
+dist-build/
 build/
+coverage/
 cli/node_modules/

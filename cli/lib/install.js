@@ -4,10 +4,12 @@ const chalk = require('chalk');
 const os = require('os');
 const AdmZip = require('adm-zip');
 
+/**
+ * Returns the user-local plugins directory, creating it if necessary.
+ * Uses os.homedir() for cross-platform compatibility (Linux, macOS, Windows).
+ */
 async function getPluginsDir() {
-    // 在用户主目录下创建插件目录
-    const homeDir = os.homedir();
-    const pluginsDir = path.join(homeDir, '.log-analyzer', 'plugins');
+    const pluginsDir = path.join(os.homedir(), '.log-analyzer', 'plugins');
     await fs.ensureDir(pluginsDir);
     return pluginsDir;
 }
@@ -25,7 +27,7 @@ async function install({ pluginPath }) {
         const zip = new AdmZip(pluginPath);
         const zipEntries = zip.getEntries();
 
-        // 验证插件结构
+        // Validate plugin structure
         const hasPackageJson = zipEntries.some(entry => entry.entryName === 'package.json');
         const hasIndexJs = zipEntries.some(entry => entry.entryName === 'index.js');
 
@@ -33,7 +35,7 @@ async function install({ pluginPath }) {
             throw new Error('Invalid plugin structure: missing package.json or index.js');
         }
 
-        // 读取插件信息
+        // Read plugin metadata
         const packageJsonEntry = zipEntries.find(entry => entry.entryName === 'package.json');
         const packageJson = JSON.parse(packageJsonEntry.getData().toString('utf8'));
         const pluginName = packageJson.name;
@@ -42,16 +44,16 @@ async function install({ pluginPath }) {
             throw new Error('Invalid plugin: package.json must contain a name field');
         }
 
-        // 获取插件安装目录
+        // Resolve the install directory using the cross-platform home dir
         const pluginsDir = await getPluginsDir();
         const pluginDir = path.join(pluginsDir, pluginName);
 
-        // 如果插件已存在，先删除
+        // If plugin already exists, remove it first (upgrade)
         if (fs.existsSync(pluginDir)) {
             await fs.remove(pluginDir);
         }
 
-        // 解压插件
+        // Extract plugin
         console.log(chalk.blue(`Installing plugin: ${pluginName}`));
         zip.extractAllTo(pluginDir, true);
 

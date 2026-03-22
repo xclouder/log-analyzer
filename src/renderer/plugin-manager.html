@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>插件管理</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+      background-color: #f5f5f5;
+    }
+    .plugin-list {
+      margin-top: 20px;
+    }
+    .plugin-item {
+      background: white;
+      padding: 15px;
+      margin-bottom: 10px;
+      border-radius: 4px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    .plugin-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+    .plugin-name {
+      font-size: 16px;
+      font-weight: bold;
+    }
+    .plugin-version {
+      color: #666;
+      font-size: 14px;
+    }
+    .plugin-description {
+      color: #444;
+      margin: 10px 0;
+    }
+    .plugin-author {
+      color: #666;
+      font-size: 14px;
+    }
+    .plugin-actions {
+      margin-top: 10px;
+    }
+    .btn {
+      padding: 5px 15px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+      margin-right: 10px;
+    }
+    .btn-danger {
+      background: #dc3545;
+      color: white;
+    }
+    .btn-danger:disabled {
+      background: #e9a0a7;
+      cursor: not-allowed;
+    }
+    .btn-primary {
+      background: #007bff;
+      color: white;
+    }
+    .btn-open-dir {
+      background-color: #007bff;
+      color: white;
+      margin-right: 10px;
+    }
+    .btn-open-dir:hover {
+      background-color: #0056b3;
+    }
+    .install-section {
+      margin-bottom: 20px;
+      padding: 15px;
+      background: white;
+      border-radius: 4px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    .drag-area {
+      border: 2px dashed #ccc;
+      padding: 20px;
+      text-align: center;
+      margin: 10px 0;
+      border-radius: 4px;
+    }
+    .drag-area.drag-over {
+      border-color: #007bff;
+      background: #e7f3ff;
+    }
+    .close-button {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      padding: 5px 10px;
+      background-color: #ff5f5f;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <button class="close-button" onclick="window.close();">关闭</button>
+  <div class="install-section">
+    <h2>安装插件</h2>
+    <div class="drag-area" id="dragArea">
+      拖放插件包(.zip)到此处，或点击选择文件
+      <input type="file" id="fileInput" style="display: none" accept=".zip">
+    </div>
+    <button class="btn btn-open-dir" onclick="openUserPluginsDir()">打开插件目录</button>
+  </div>
+
+  <h2>已安装插件</h2>
+  <div class="plugin-list" id="pluginList">
+    <!-- Plugin list populated dynamically -->
+  </div>
+
+  <script src="dist/renderer/plugin-manager.js"></script>
+</body>
+</html>

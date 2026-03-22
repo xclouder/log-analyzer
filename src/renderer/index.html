@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <title>LogAnalyzer</title>
+  <style>
+    body { margin:0; padding:0; overflow:hidden; background-color:#1e1e1e; display:flex; flex-direction:column; height:100vh; }
+    #toolbar { background-color:#333; padding:10px; display:flex; flex-direction:column; gap:10px; }
+    .toolbar-row { display:flex; align-items:center; gap:10px; }
+    button { background-color:#444; border:none; color:white; padding:8px 15px; cursor:pointer; border-radius:3px; }
+    button:hover { background-color:#555; }
+    input[type="text"] { background-color:#444; border:none; color:white; padding:5px 10px; border-radius:3px; width:200px; }
+    .editors-container { display:flex; flex:1; min-height:0; position:relative; user-select:none; }
+    #editor, #filtered-editor { flex:1; min-width:200px; height:100%; border:2px dashed transparent; transition:border-color 0.3s; }
+    #editor.drag-over, #filtered-editor.drag-over { border-color:#4CAF50; }
+    .divider { width:4px; background:#333; cursor:col-resize; transition:background-color 0.2s; }
+    .divider:hover { background:#666; }
+    .filter-container { display:flex; flex-direction:column; gap:10px; margin:0; }
+    .filter-item { display:flex; align-items:center; gap:10px; background-color:#2d2d2d; padding:4px 8px; border-radius:4px; }
+    .filter-type { background-color:#444; color:white; border:none; padding:5px 10px; border-radius:3px; cursor:pointer; }
+    .filter-type option { background-color:#444; color:white; }
+    .filter-pattern { flex:1; padding:5px; border-radius:4px; border:1px solid #ccc; }
+    .highlight-controls { display:flex; align-items:center; gap:5px; }
+    .kendo-colorpicker-container { width:28px; height:28px; }
+    .delete-filter { background-color:#d32f2f; color:white; border:none; padding:5px 10px; border-radius:3px; cursor:pointer; }
+    .delete-filter:hover { background-color:#b71c1c; }
+    .filter-section { overflow:hidden; max-height:none; display:flex; flex-direction:column; gap:2px; padding:2px 0; transition:background-color 0.3s; }
+    .filter-section.drag-over { background-color:rgba(76,175,80,0.1); outline:2px dashed #4CAF50; outline-offset:-2px; }
+    .filter-section.collapsed { display:none; }
+    .filter-toggle { display:flex; align-items:center; gap:8px; cursor:pointer; user-select:none; background-color:#2d2d2d; padding:6px 12px; border-radius:4px; color:#e0e0e0; font-weight:500; border:1px solid #404040; transition:all 0.2s ease; }
+    .filter-toggle:hover { background-color:#383838; border-color:#505050; color:#ffffff; }
+    .filter-toggle i { color:#64B5F6; font-size:14px; }
+    .filter-toggle.collapsed i { transform:rotate(-90deg); }
+    .filter-buttons { display:flex; gap:8px; justify-content:flex-start; }
+    .filter-button { padding:0 12px; border:none; border-radius:4px; cursor:pointer; font-size:13px; transition:all 0.2s ease; height:26px; }
+    .add-filter { background-color:#2d2d2d; color:#e0e0e0; }
+    .add-filter:hover { background-color:#383838; color:#ffffff; }
+    .apply-filter { background-color:#1565C0; color:white; }
+    .apply-filter:hover { background-color:#1976D2; }
+    .enable-checkbox { margin:0; width:14px; height:14px; cursor:pointer; }
+    .fullscreen { position:fixed !important; top:0 !important; left:0 !important; width:100vw !important; height:100vh !important; z-index:9999 !important; }
+    body.has-fullscreen #editors-container > :not(.fullscreen) { display:none; }
+    .download-progress-container { position:fixed; bottom:20px; right:20px; background-color:#2d2d2d; border:1px solid #404040; border-radius:8px; padding:15px; min-width:300px; max-width:400px; box-shadow:0 4px 12px rgba(0,0,0,0.5); z-index:10000; display:none; }
+    .download-progress-container.active { display:block; }
+    .download-progress-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+    .download-progress-title { color:#e0e0e0; font-size:14px; font-weight:500; }
+    .download-progress-close { background:none; border:none; color:#888; cursor:pointer; font-size:18px; padding:0; width:20px; height:20px; line-height:20px; }
+    .download-progress-close:hover { color:#fff; }
+    .download-progress-bar { width:100%; height:8px; background-color:#404040; border-radius:4px; overflow:hidden; margin-bottom:8px; }
+    .download-progress-fill { height:100%; background:linear-gradient(90deg,#1565C0,#42A5F5); border-radius:4px; transition:width 0.3s ease; width:0%; }
+    .download-progress-text { color:#b0b0b0; font-size:12px; display:flex; justify-content:space-between; }
+    .download-progress-url { color:#888; font-size:11px; margin-top:5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .large-file-dialog { position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); background-color:#2d2d2d; border:1px solid #404040; border-radius:8px; padding:20px; min-width:400px; box-shadow:0 4px 20px rgba(0,0,0,0.7); z-index:10001; display:none; }
+    .large-file-dialog.active { display:block; }
+    .large-file-dialog-overlay { position:fixed; top:0; left:0; right:0; bottom:0; background-color:rgba(0,0,0,0.5); z-index:10000; display:none; }
+    .large-file-dialog-overlay.active { display:block; }
+    .large-file-dialog h3 { color:#e0e0e0; margin:0 0 15px; font-size:16px; }
+    .large-file-dialog-content { margin-bottom:20px; }
+    .large-file-dialog-field { margin-bottom:15px; }
+    .large-file-dialog-field label { display:block; color:#b0b0b0; font-size:13px; margin-bottom:5px; }
+    .large-file-dialog-field input { width:100%; background-color:#404040; border:1px solid #555; color:#e0e0e0; padding:8px; border-radius:4px; font-size:13px; box-sizing:border-box; }
+    .large-file-dialog-field input:focus { outline:none; border-color:#1565C0; }
+    .large-file-dialog-buttons { display:flex; justify-content:flex-end; gap:10px; }
+    .large-file-dialog-button { padding:8px 16px; border:none; border-radius:4px; cursor:pointer; font-size:13px; }
+    .large-file-dialog-button.primary { background-color:#1565C0; color:white; }
+    .large-file-dialog-button.primary:hover { background-color:#1976D2; }
+    .large-file-dialog-button.secondary { background-color:#404040; color:#e0e0e0; }
+    .large-file-dialog-button.secondary:hover { background-color:#505050; }
+    .file-info-text { color:#888; font-size:12px; margin-top:5px; }
+  </style>
+  <link rel="stylesheet" href="command-palette.css">
+  <link href="../../kendo-ui/default-main-dark.css" rel="stylesheet">
+  <script src="../../kendo-ui/jquery-3.7.0.min.js"></script>
+  <script src="../../kendo-ui/kendo.all.min.js"></script>
+</head>
+
+<body>
+  <div id="toolbar">
+    <div class="toolbar-row">
+      <div class="filter-toggle" onclick="toggleFilterPanel()">
+        <i>▼</i>
+        <span>过滤条件</span>
+      </div>
+    </div>
+    <div class="filter-section" id="filter-section">
+      <div class="filter-container" id="filter-container"></div>
+      <div class="filter-buttons">
+        <button class="filter-button add-filter" onclick="addFilter()">添加过滤条件</button>
+        <button class="filter-button apply-filter" onclick="applyFilters()">应用过滤器</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="editors-container" id="editors-container">
+    <div id="editor"></div>
+    <div class="divider"></div>
+    <div id="filtered-editor"></div>
+  </div>
+
+  <!-- Command palette overlay and palette -->
+  <div id="commandOverlay" class="command-overlay"></div>
+  <div id="commandPalette" class="command-palette">
+    <input type="text" id="commandInput" class="command-palette-input" placeholder="输入命令...">
+    <div id="commandList" class="command-list"></div>
+  </div>
+
+  <!-- Download progress bar (bottom right) -->
+  <div id="downloadProgress" class="download-progress-container">
+    <div class="download-progress-header">
+      <span class="download-progress-title">下载中...</span>
+      <button class="download-progress-close" onclick="hideDownloadProgress()">×</button>
+    </div>
+    <div class="download-progress-bar">
+      <div id="downloadProgressFill" class="download-progress-fill"></div>
+    </div>
+    <div class="download-progress-text">
+      <span id="downloadProgressPercent">0%</span>
+      <span id="downloadProgressSize">0MB / 0MB</span>
+    </div>
+    <div id="downloadProgressUrl" class="download-progress-url"></div>
+  </div>
+
+  <!-- Large file dialog (centered modal) -->
+  <div id="largeFileDialogOverlay" class="large-file-dialog-overlay"></div>
+  <div id="largeFileDialog" class="large-file-dialog">
+    <h3>读取大文件</h3>
+    <div class="large-file-dialog-content">
+      <div class="large-file-dialog-field">
+        <label>时间戳（可选）</label>
+        <input type="text" id="timestampInput"
+          placeholder="例如: 11.04-19.19.39 或 11.04-19.19"
+          onkeydown="if(event.key==='Enter')confirmReadLargeFile()">
+        <div class="file-info-text">UE格式: MM.DD-HH.mm.ss 或 MM.DD-HH.mm（可省略秒）</div>
+      </div>
+      <div class="large-file-dialog-field">
+        <label>读取大小（MB）</label>
+        <input type="number" id="readSizeInput" value="100" min="1" max="1000"
+          onkeydown="if(event.key==='Enter')confirmReadLargeFile()">
+        <div class="file-info-text">默认100MB，最大1000MB</div>
+      </div>
+    </div>
+    <div class="large-file-dialog-buttons">
+      <button class="large-file-dialog-button secondary" onclick="closeLargeFileDialog()">取消</button>
+      <button class="large-file-dialog-button primary" onclick="confirmReadLargeFile()">读取</button>
+    </div>
+  </div>
+
+  <!-- Custom confirm dialog -->
+  <div id="confirmDialogOverlay" class="large-file-dialog-overlay"></div>
+  <div id="confirmDialog" class="large-file-dialog">
+    <h3 id="confirmDialogTitle">确认</h3>
+    <div class="large-file-dialog-content">
+      <div id="confirmDialogMessage" style="color:#e0e0e0; font-size:14px; line-height:1.6; white-space:pre-wrap;"></div>
+    </div>
+    <div class="large-file-dialog-buttons">
+      <button class="large-file-dialog-button secondary" onclick="closeConfirmDialog(false)">取消</button>
+      <button class="large-file-dialog-button primary" onclick="closeConfirmDialog(true)">确定</button>
+    </div>
+  </div>
+
+  <!-- Scripts: compiled TS outputs are at ../../dist/renderer/renderer/ relative to this HTML -->
+  <script src="../../node_modules/monaco-editor/min/vs/loader.js"></script>
+  <script src="../../dist/renderer/renderer/command-palette.js"></script>
+  <script src="../../dist/renderer/renderer/divider.js"></script>
+  <script src="../../dist/renderer/renderer/renderer-inputbox.js"></script>
+  <script src="../../dist/renderer/renderer/app.js"></script>
+</body>
+
+</html>

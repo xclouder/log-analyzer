@@ -76,11 +76,11 @@ const questions = [
 
 async function createPluginStructure(answers) {
     const pluginDir = path.join(process.cwd(), answers.name);
-    
+
     // Create plugin directory and assets directory
     await fs.ensureDir(pluginDir);
     await fs.ensureDir(path.join(pluginDir, 'assets'));
-    
+
     // Create package.json
     const packageJson = {
         name: answers.name,
@@ -97,9 +97,9 @@ async function createPluginStructure(answers) {
             fileTypes: answers.fileTypes || []
         }
     };
-    
+
     await fs.writeJson(path.join(pluginDir, 'package.json'), packageJson, { spaces: 2 });
-    
+
     // Create index.js with selected features
     let pluginCode = `const path = require('path');
 
@@ -163,7 +163,7 @@ module.exports = function(pluginBasePath) {
                 height: 600,
                 title: '${answers.title || answers.name}'
             });
-            
+
             // Add your window initialization logic here
         }
 `;
@@ -176,7 +176,7 @@ module.exports = function(pluginBasePath) {
 `;
 
     await fs.writeFile(path.join(pluginDir, 'index.js'), pluginCode);
-    
+
     // Create README.md
     const readme = `# ${answers.name}
 
@@ -216,17 +216,17 @@ MIT
 async function init() {
     try {
         console.log(chalk.blue('Creating a new Log Analyzer plugin...'));
-        
+
         const answers = await inquirer.prompt(questions);
-        
+
         await createPluginStructure(answers);
-        
+
         console.log(chalk.green('\nPlugin created successfully! \u2705'));
         console.log(chalk.yellow('\nNext steps:'));
         console.log(`1. cd ${answers.name}`);
         console.log('2. Implement your plugin logic in index.js');
         console.log('3. Run log-analyzer-plugin build to create the plugin package');
-        
+
     } catch (err) {
         console.error(chalk.red('Error creating plugin:'), err);
         process.exit(1);

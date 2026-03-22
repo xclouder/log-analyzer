@@ -21,11 +21,11 @@ async function validatePluginStructure(pluginDir) {
     return errors;
 }
 
-async function build({ output }) {
+async function build({ output } = {}) {
     try {
         const pluginDir = process.cwd();
         const pluginName = path.basename(pluginDir);
-        
+
         // Validate plugin structure
         const validationErrors = await validatePluginStructure(pluginDir);
         if (validationErrors.length > 0) {

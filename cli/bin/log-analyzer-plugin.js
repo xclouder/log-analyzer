@@ -1,29 +1,37 @@
 #!/usr/bin/env node
+'use strict';
 
-const { program } = require('commander');
-const { init } = require('../lib/init');
-const { build } = require('../lib/build');
-const { install } = require('../lib/install');
-
-program
-    .version('1.0.0')
-    .description('CLI tool for creating and building Log Analyzer plugins');
+const { Command } = require('commander');
+const program = new Command();
 
 program
-    .command('init')
-    .description('Initialize a new plugin project')
-    .action(init);
+  .name('log-analyzer-plugin')
+  .description('CLI tool for LogAnalyzer plugin development')
+  .version('1.0.0');
 
 program
-    .command('build')
-    .description('Build plugin into a zip file')
-    .option('-o, --output <path>', 'output path for the zip file')
-    .action(build);
+  .command('init')
+  .description('Scaffold a new plugin project')
+  .action(async () => {
+    const { init } = require('../lib/init');
+    await init();
+  });
 
 program
-    .command('install')
-    .description('Install a plugin to Log Analyzer')
-    .argument('<plugin-path>', 'path to the plugin zip file')
-    .action((pluginPath) => install({ pluginPath }));
+  .command('build')
+  .description('Build current plugin directory into a .zip file')
+  .option('-o, --output <path>', 'Output zip file path')
+  .action(async (options) => {
+    const { build } = require('../lib/build');
+    await build(options);
+  });
+
+program
+  .command('install <plugin-path>')
+  .description('Install a plugin .zip into ~/.log-analyzer/plugins/')
+  .action(async (pluginPath) => {
+    const { install } = require('../lib/install');
+    await install({ pluginPath });
+  });
 
 program.parse(process.argv);
