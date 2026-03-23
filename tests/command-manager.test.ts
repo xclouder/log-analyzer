@@ -1,10 +1,40 @@
 import { CommandManager } from '../src/main/command-manager';
 
+// The logger mock must be created inside jest.mock() factory (hoisted before imports).
+// We retrieve the same instance through the mocked module.
+jest.mock('../src/main/log-util', () => {
+  const logger = {
+    warn: jest.fn(),
+    error: jest.fn(),
+    info: jest.fn(),
+    debug: jest.fn(),
+  };
+  return {
+    __esModule: true,
+    getLogger: jest.fn(() => logger),
+    configureLogger: jest.fn(),
+    shutdown: jest.fn(),
+    // Expose for test access
+    _mockLogger: logger,
+  };
+});
+
+// Retrieve the mock logger after jest.mock has been set up
+import * as logUtil from '../src/main/log-util';
+const mockLogger = (logUtil as any)._mockLogger as {
+  warn: jest.Mock;
+  error: jest.Mock;
+  info: jest.Mock;
+  debug: jest.Mock;
+};
+
 describe('CommandManager', () => {
   let manager: CommandManager;
 
   beforeEach(() => {
     manager = new CommandManager();
+    mockLogger.warn.mockClear();
+    mockLogger.error.mockClear();
   });
 
   // ─── Registration ───────────────────────────────────────────────────────────
@@ -19,20 +49,16 @@ describe('CommandManager', () => {
   });
 
   it('warns and skips duplicate registration', () => {
-    const consoleSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
     manager.registerCommand('test.cmd', 'Test', 'Cat', () => {});
     manager.registerCommand('test.cmd', 'Test2', 'Cat', () => {});
     expect(manager.getAllCommands()).toHaveLength(1);
-    expect(consoleSpy).toHaveBeenCalled();
-    consoleSpy.mockRestore();
+    expect(mockLogger.warn).toHaveBeenCalled();
   });
 
   it('preserves first registration on duplicate', () => {
     manager.registerCommand('test.cmd', 'Original Title', 'Cat', () => {});
-    jest.spyOn(console, 'warn').mockImplementation(() => {});
     manager.registerCommand('test.cmd', 'Different Title', 'Cat', () => {});
     expect(manager.getAllCommands()[0].title).toBe('Original Title');
-    jest.restoreAllMocks();
   });
 
   it('registers multiple distinct commands', () => {
@@ -51,10 +77,8 @@ describe('CommandManager', () => {
   });
 
   it('warns when unregistering a non-existent command', () => {
-    const consoleSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
     manager.unregisterCommand('does.not.exist');
-    expect(consoleSpy).toHaveBeenCalled();
-    consoleSpy.mockRestore();
+    expect(mockLogger.warn).toHaveBeenCalled();
   });
 
   it('unregistering one command does not affect others', () => {
@@ -75,10 +99,8 @@ describe('CommandManager', () => {
   });
 
   it('logs error for unknown command execution', () => {
-    const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
     manager.executeCommand('nonexistent');
-    expect(consoleSpy).toHaveBeenCalled();
-    consoleSpy.mockRestore();
+    expect(mockLogger.error).toHaveBeenCalled();
   });
 
   it('does not throw when executing command that throws', () => {
@@ -89,13 +111,11 @@ describe('CommandManager', () => {
   });
 
   it('logs the error when the action throws', () => {
-    const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
     manager.registerCommand('bad.cmd', 'Bad', 'Test', () => {
       throw new Error('boom');
     });
     manager.executeCommand('bad.cmd');
-    expect(consoleSpy).toHaveBeenCalled();
-    consoleSpy.mockRestore();
+    expect(mockLogger.error).toHaveBeenCalled();
   });
 
   it('executes only the intended command when multiple are registered', () => {

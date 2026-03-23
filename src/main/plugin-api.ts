@@ -1,5 +1,6 @@
 import type { PluginContext } from './plugin-context';
 import type { InputBoxOptions, MessageOptions, QuickPickOptions } from '../shared/types';
+import type { BrowserWindow } from 'electron';
 
 /**
  * PluginAPI is the surface exposed to every plugin instance.
@@ -47,6 +48,9 @@ export interface PluginAPI {
   /** Returns the OS-appropriate application cache directory (cross-platform). */
   getAppCacheDir(): string;
 
+  /** Returns the path of the currently-open file, or null. */
+  getCurrentFilePath(): string | null;
+
   // ── Command registration ────────────────────────────────────────────────────
 
   /**
@@ -54,4 +58,18 @@ export interface PluginAPI {
    * Returns a Disposable that unregisters the command when disposed.
    */
   registerCommand(context: PluginContext, commandId: string, action: () => void | Promise<void>): void;
+
+  // ── Window helpers ─────────────────────────────────────────────────────────
+
+  /** Create a new BrowserWindow owned by a plugin. */
+  createWindow(pluginId: string, options?: Electron.BrowserWindowConstructorOptions): BrowserWindow;
+
+  /** Create a simple text-editor window (loads editor.html). */
+  createEditorWindow(options?: { width?: number; height?: number; title?: string; textContent?: string }): BrowserWindow;
+
+  /** Close a plugin-owned window by plugin ID. */
+  closeWindow(pluginId: string): void;
+
+  /** Get a plugin-owned window by plugin ID. */
+  getWindow(pluginId: string): BrowserWindow | undefined;
 }

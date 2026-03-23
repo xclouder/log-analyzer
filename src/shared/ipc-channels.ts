@@ -5,11 +5,9 @@
 
 // File operations (renderer → main, invoke)
 export const IPC_FILE_OPEN = 'file:open';
-export const IPC_FILE_READ = 'file:read';
 export const IPC_FILE_STATS = 'file:stats';
 export const IPC_FILE_RELOAD = 'file:reload';
 export const IPC_FILE_READ_BY_TIMESTAMP = 'file:read-by-timestamp';
-export const IPC_FILE_SHOW_IN_FOLDER = 'file:show-in-folder';
 
 // Dialog operations (renderer → main, invoke)
 export const IPC_DIALOG_OPEN_FILE = 'dialog:openFile';
@@ -75,3 +73,12 @@ export const IPC_TOGGLE_LOGGING = 'toggle-logging';
 // Editor window (main → renderer, send)
 export const IPC_SET_CONTENT = 'set-content';
 export const IPC_CONTENT_CHANGED = 'content-changed';
+
+// Window controls (renderer → main, send/invoke)
+export const IPC_WINDOW_MINIMIZE = 'window-minimize';
+export const IPC_WINDOW_MAXIMIZE = 'window-maximize';
+export const IPC_WINDOW_CLOSE = 'window-close';
+export const IPC_WINDOW_IS_MAXIMIZED = 'window-is-maximized';
+
+// Menu save file (main → renderer, send)
+export const IPC_MENU_SAVE_FILE = 'menu:save-file';

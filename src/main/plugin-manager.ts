@@ -18,13 +18,14 @@ import AdmZip from 'adm-zip';
 import { getLogger } from './log-util';
 import { PluginContext } from './plugin-context';
 import { PluginAPIImpl } from './plugin-api-impl';
+import type { PluginBase } from './plugin-base';
 import type { PluginMetadata, PluginInfo } from '../shared/types';
 import type { CommandManager } from './command-manager';
 
 const logger = getLogger('PluginManager');
 
 interface LoadedPlugin {
-  instance: any;
+  instance: PluginBase;
   metadata: PluginMetadata;
   context: PluginContext;
 }
@@ -35,13 +36,18 @@ export class PluginManager {
   private readonly plugins = new Map<string, LoadedPlugin>();
   private readonly api: PluginAPIImpl;
 
-  builtinPluginsDir = '';
-  userPluginsDir = '';
+  private _builtinPluginsDir = '';
+  private _userPluginsDir = '';
 
-  constructor(mainWindow: BrowserWindow, commandManager: CommandManager) {
+  /** Directory containing built-in plugins. */
+  get builtinPluginsDir(): string { return this._builtinPluginsDir; }
+  /** Directory containing user-installed plugins. */
+  get userPluginsDir(): string { return this._userPluginsDir; }
+
+  constructor(mainWindow: BrowserWindow, commandManager: CommandManager, getCurrentFilePath: () => string) {
     this.mainWindow = mainWindow;
     this.commandManager = commandManager;
-    this.api = new PluginAPIImpl(mainWindow, commandManager);
+    this.api = new PluginAPIImpl(mainWindow, commandManager, getCurrentFilePath);
   }
 
   // ── Directory initialisation ──────────────────────────────────────────────
@@ -49,16 +55,16 @@ export class PluginManager {
   private async initPluginDirs(): Promise<void> {
     // __dirname at runtime = dist/main/main/ → project root = ../../../
     const projectRoot = path.join(__dirname, '..', '..', '..');
-    this.builtinPluginsDir = app.isPackaged
+    this._builtinPluginsDir = app.isPackaged
       ? path.join(process.resourcesPath, 'plugins')
       : path.join(projectRoot, 'src', 'plugins');
 
-    this.userPluginsDir = path.join(app.getPath('userData'), 'plugins');
-    await fsPromises.mkdir(this.userPluginsDir, { recursive: true });
+    this._userPluginsDir = path.join(app.getPath('userData'), 'plugins');
+    await fsPromises.mkdir(this._userPluginsDir, { recursive: true });
 
     logger.info('Plugin directories:', {
-      builtin: this.builtinPluginsDir,
-      user: this.userPluginsDir,
+      builtin: this._builtinPluginsDir,
+      user: this._userPluginsDir,
     });
   }
 
@@ -67,8 +73,8 @@ export class PluginManager {
   async loadPlugins(): Promise<void> {
     try {
       await this.initPluginDirs();
-      if (this.builtinPluginsDir) await this.loadFromDir(this.builtinPluginsDir, true);
-      if (this.userPluginsDir) await this.loadFromDir(this.userPluginsDir, false);
+      if (this._builtinPluginsDir) await this.loadFromDir(this._builtinPluginsDir, true);
+      if (this._userPluginsDir) await this.loadFromDir(this._userPluginsDir, false);
     } catch (err) {
       logger.error('Failed to load plugins:', err);
     }
@@ -146,7 +152,7 @@ export class PluginManager {
   // ── Install ───────────────────────────────────────────────────────────────
 
   async installPlugin(zipPath: string): Promise<{ success: boolean; plugin: any }> {
-    const tempDir = path.join(this.userPluginsDir, '_temp');
+    const tempDir = path.join(this._userPluginsDir, '_temp');
     try {
       if (!fs.existsSync(zipPath)) throw new Error(`Plugin file not found: ${zipPath}`);
 
@@ -163,7 +169,7 @@ export class PluginManager {
       const packageJson = JSON.parse(await fsPromises.readFile(packageJsonPath, 'utf-8'));
       if (!this.validatePackage(packageJson)) throw new Error('Invalid plugin format');
 
-      const targetDir = path.join(this.userPluginsDir, packageJson.name);
+      const targetDir = path.join(this._userPluginsDir, packageJson.name);
       if (fs.existsSync(targetDir)) throw new Error(`Plugin already exists: ${packageJson.name}`);
 
       await fsPromises.rename(tempDir, targetDir);

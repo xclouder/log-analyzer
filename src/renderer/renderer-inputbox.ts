@@ -12,44 +12,80 @@
  * sendQuickPickResponse / sendInformationResponse / sendErrorResponse.
  */
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+// Types inlined to avoid `import type` which causes `exports` preamble in compiled JS.
+interface InputBoxOptions { placeholder?: string; defaultValue?: string; prompt?: string; }
+interface QuickPickOptions { title?: string; placeHolder?: string; }
+interface QuickPickItem { label: string; description?: string; detail?: string; [key: string]: unknown; }
+interface MessageOptions { modal?: boolean; detail?: string; }
 
-interface InputBoxOptions {
-  placeholder?: string;
-  defaultValue?: string;
+// ─── Shared modal helper ─────────────────────────────────────────────────────
+
+interface ModalResult {
+  mask: HTMLDivElement;
+  container: HTMLDivElement;
+  cleanup: () => void;
 }
 
-interface QuickPickOptions {
-  title?: string;
-  placeHolder?: string;
+function createModal(
+  id: string,
+  containerCSS: string,
+  onEscape?: () => void,
+): ModalResult {
+  // Prevent duplicates
+  const existing = document.getElementById(`${id}-mask`);
+  if (existing) existing.remove();
+
+  const mask = document.createElement('div');
+  mask.id = `${id}-mask`;
+  mask.style.cssText = 'position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.35);z-index:9998;display:block;';
+  document.body.appendChild(mask);
+
+  const container = document.createElement('div');
+  container.id = id;
+  container.style.cssText = containerCSS;
+  mask.appendChild(container);
+
+  function onKeyDown(e: KeyboardEvent): void {
+    if (e.key === 'Escape' && onEscape) onEscape();
+  }
+
+  if (onEscape) window.addEventListener('keydown', onKeyDown, true);
+
+  function cleanup(): void {
+    if (container.parentNode) container.parentNode.removeChild(container);
+    if (mask.parentNode) mask.parentNode.removeChild(mask);
+    window.removeEventListener('keydown', onKeyDown, true);
+  }
+
+  return { mask, container, cleanup };
 }
 
-interface QuickPickItem {
-  label: string;
-  [key: string]: unknown;
-}
-
-interface MessageOptions {
-  modal?: boolean;
-  detail?: string;
-}
+const PANEL_CSS = [
+  'background:#444', 'color:#fff', 'border:none', 'outline:none',
+  'border-radius:6px', 'box-shadow:0 8px 32px 0 rgba(0,0,0,0.32)',
+  'font-family:inherit',
+  'z-index:9999', 'position:fixed', 'left:50%', 'top:80px', 'transform:translateX(-50%)',
+].join(';');
 
 // ─── InputBox ─────────────────────────────────────────────────────────────────
 
 function createInputBox(options: InputBoxOptions, requestId: string): void {
-  // Prevent duplicate
-  if (document.getElementById('electron-plugin-inputbox-mask')) return;
+  let modal: ModalResult | null = null;
 
-  // Overlay mask
-  const mask = document.createElement('div');
-  mask.id = 'electron-plugin-inputbox-mask';
-  mask.style.cssText = 'position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.35);z-index:9998;display:block;';
-  document.body.appendChild(mask);
+  function send(value: string | null): void {
+    window.electronAPI.sendInputBoxResponse(requestId, value);
+    modal?.cleanup();
+  }
 
-  // Input element
+  modal = createModal(
+    'electron-plugin-inputbox',
+    PANEL_CSS + ';font-size:18px;width:800px;height:40px;padding:0;',
+    () => send(null),
+  );
+
+  // Replace the container with just the input (InputBox is special — no wrapper)
   const input = document.createElement('input');
   input.type = 'text';
-  input.id = 'electron-plugin-inputbox';
   input.placeholder = options?.placeholder ?? '请输入内容';
   input.value = options?.defaultValue ?? '';
   input.style.cssText = [
@@ -66,32 +102,28 @@ function createInputBox(options: InputBoxOptions, requestId: string): void {
   input.onfocus = () => { input.style.boxShadow = '0 0 0 2px #1565C0, 0 8px 32px 0 rgba(0,0,0,0.32)'; };
   input.onblur = () => { input.style.boxShadow = '0 8px 32px 0 rgba(0,0,0,0.32)'; };
 
-  mask.appendChild(input);
+  // Remove the default container, place input directly in mask
+  modal.container.remove();
+  modal.mask.appendChild(input);
   input.focus();
 
-  function cleanup(): void {
-    if (input.parentNode) input.parentNode.removeChild(input);
-    if (mask.parentNode) mask.parentNode.removeChild(mask);
-    window.removeEventListener('keydown', onKeyDown, true);
-  }
-
+  // Override escape to also handle Enter
   function onKeyDown(e: KeyboardEvent): void {
-    if (e.key === 'Enter') {
-      (window as any).electronAPI.sendInputBoxResponse(requestId, input.value);
-      cleanup();
-    } else if (e.key === 'Escape') {
-      (window as any).electronAPI.sendInputBoxResponse(requestId, null);
-      cleanup();
-    }
+    if (e.key === 'Enter') send(input.value);
+    else if (e.key === 'Escape') send(null);
   }
-
   window.addEventListener('keydown', onKeyDown, true);
+
+  // Extend cleanup to also remove this listener
+  const origCleanup = modal.cleanup;
+  modal.cleanup = () => {
+    window.removeEventListener('keydown', onKeyDown, true);
+    if (input.parentNode) input.parentNode.removeChild(input);
+    origCleanup();
+  };
 }
 
-(window as any).createInputBox = createInputBox;
-
-// Listen for main-process requests to show an InputBox
-(window as any).electronAPI.onPluginShowInputBox((_event: any, { options, requestId }: { options: InputBoxOptions; requestId: string }) => {
+window.electronAPI.onPluginShowInputBox((_event, { options, requestId }) => {
   createInputBox(options, requestId);
 });
 
@@ -102,28 +134,21 @@ function createQuickPick(
   options: QuickPickOptions,
   requestId: string,
 ): void {
-  // Prevent duplicate
-  if (document.getElementById('electron-plugin-quickpick-mask')) return;
+  let modal: ModalResult | null = null;
 
-  // Overlay mask
-  const mask = document.createElement('div');
-  mask.id = 'electron-plugin-quickpick-mask';
-  mask.style.cssText = 'position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.35);z-index:9998;display:block;';
-  document.body.appendChild(mask);
+  function send(value: string | QuickPickItem | null): void {
+    window.electronAPI.sendQuickPickResponse(requestId, value);
+    modal?.cleanup();
+  }
 
-  // Container
-  const container = document.createElement('div');
-  container.id = 'electron-plugin-quickpick';
-  container.style.cssText = [
-    'background:#444', 'color:#fff', 'border:none', 'outline:none',
-    'border-radius:6px', 'box-shadow:0 8px 32px 0 rgba(0,0,0,0.32)',
-    'font-size:16px', 'font-family:inherit',
-    'width:800px', 'max-height:400px', 'overflow-y:auto', 'padding:8px 0',
-    'z-index:9999', 'position:fixed', 'left:50%', 'top:80px', 'transform:translateX(-50%)',
-  ].join(';');
-  mask.appendChild(container);
+  modal = createModal(
+    'electron-plugin-quickpick',
+    PANEL_CSS + ';font-size:16px;width:800px;max-height:400px;overflow-y:auto;padding:8px 0;',
+    () => send(null),
+  );
 
-  // Optional title
+  const { container } = modal;
+
   if (options?.title) {
     const title = document.createElement('div');
     title.textContent = options.title;
@@ -131,7 +156,6 @@ function createQuickPick(
     container.appendChild(title);
   }
 
-  // Optional placeholder hint
   if (options?.placeHolder) {
     const placeholder = document.createElement('div');
     placeholder.textContent = options.placeHolder;
@@ -139,207 +163,112 @@ function createQuickPick(
     container.appendChild(placeholder);
   }
 
-  // Item list
   items.forEach((item) => {
     const option = document.createElement('div');
     option.textContent = typeof item === 'string' ? item : (item.label ?? String(item));
     option.style.cssText = 'padding:8px 16px;cursor:pointer;transition:background 0.2s;';
     option.onmouseover = () => { option.style.background = '#555'; };
     option.onmouseout = () => { option.style.background = 'transparent'; };
-    option.onclick = () => {
-      (window as any).electronAPI.sendQuickPickResponse(requestId, item);
-      cleanup();
-    };
+    option.onclick = () => send(item);
     container.appendChild(option);
   });
-
-  function onKeyDown(e: KeyboardEvent): void {
-    if (e.key === 'Escape') {
-      (window as any).electronAPI.sendQuickPickResponse(requestId, null);
-      cleanup();
-    }
-  }
-  window.addEventListener('keydown', onKeyDown, true);
-
-  function cleanup(): void {
-    if (container.parentNode) container.parentNode.removeChild(container);
-    if (mask.parentNode) mask.parentNode.removeChild(mask);
-    window.removeEventListener('keydown', onKeyDown, true);
-  }
 }
 
-(window as any).createQuickPick = createQuickPick;
-
-// Listen for main-process requests to show a QuickPick
-(window as any).electronAPI.onPluginShowQuickPick((_event: any, { items, options, requestId }: {
-  items: (string | QuickPickItem)[];
-  options: QuickPickOptions;
-  requestId: string;
-}) => {
+window.electronAPI.onPluginShowQuickPick((_event, { items, options, requestId }) => {
   createQuickPick(items, options, requestId);
 });
 
-// ─── InformationMessage ───────────────────────────────────────────────────────
+// ─── Message Dialog (shared between Information and Error) ────────────────────
 
-function createInformationMessage(
+function createMessageDialog(
+  id: string,
   message: string,
   options: MessageOptions,
   requestId: string,
+  sendResponse: (requestId: string) => void,
+  config: { bg: string; buttonBg: string; buttonHover: string; icon?: string; detailColor?: string },
 ): void {
-  if (document.getElementById('electron-plugin-informationmessage-mask')) return;
+  let modal: ModalResult | null = null;
 
-  const mask = document.createElement('div');
-  mask.id = 'electron-plugin-informationmessage-mask';
-  mask.style.cssText = 'position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.35);z-index:9998;display:block;';
-  document.body.appendChild(mask);
-
-  const container = document.createElement('div');
-  container.id = 'electron-plugin-informationmessage';
-  container.style.cssText = [
-    'background:#444', 'color:#fff', 'border:none', 'outline:none',
-    'border-radius:6px', 'box-shadow:0 8px 32px 0 rgba(0,0,0,0.32)',
-    'font-size:16px', 'font-family:inherit',
-    'width:320px', 'padding:16px',
-    'z-index:9999', 'position:fixed', 'left:50%', 'top:80px', 'transform:translateX(-50%)',
-  ].join(';');
-  mask.appendChild(container);
-
-  // Message text
-  const messageText = document.createElement('div');
-  messageText.textContent = message;
-  messageText.style.marginBottom = '16px';
-  container.appendChild(messageText);
-
-  // Optional detail text (only in modal mode)
-  if (options?.modal && options.detail) {
-    const detailText = document.createElement('div');
-    detailText.textContent = options.detail;
-    detailText.style.cssText = 'margin-bottom:16px;color:#bbb;font-size:14px;';
-    container.appendChild(detailText);
+  function done(): void {
+    sendResponse(requestId);
+    modal?.cleanup();
   }
 
-  // OK button
-  const button = document.createElement('button');
-  button.textContent = 'OK';
-  button.style.cssText = 'background:#1565C0;color:#fff;border:none;border-radius:4px;padding:8px 16px;cursor:pointer;transition:background 0.2s;';
-  button.onmouseover = () => { button.style.background = '#104d8e'; };
-  button.onmouseout = () => { button.style.background = '#1565C0'; };
-  button.onclick = () => {
-    (window as any).electronAPI.sendInformationResponse(requestId, 'OK');
-    cleanup();
-  };
-  container.appendChild(button);
+  modal = createModal(
+    id,
+    PANEL_CSS + `;font-size:16px;width:320px;padding:16px;background:${config.bg};`,
+    done,
+  );
 
+  const { container } = modal;
+
+  // Override escape to also handle Enter
   function onKeyDown(e: KeyboardEvent): void {
-    if (e.key === 'Enter' || e.key === 'Escape') {
-      (window as any).electronAPI.sendInformationResponse(requestId, 'OK');
-      cleanup();
-    }
+    if (e.key === 'Enter' || e.key === 'Escape') done();
   }
   window.addEventListener('keydown', onKeyDown, true);
-
-  function cleanup(): void {
-    if (container.parentNode) container.parentNode.removeChild(container);
-    if (mask.parentNode) mask.parentNode.removeChild(mask);
+  const origCleanup = modal.cleanup;
+  modal.cleanup = () => {
     window.removeEventListener('keydown', onKeyDown, true);
+    origCleanup();
+  };
+
+  if (config.icon) {
+    const icon = document.createElement('div');
+    icon.textContent = config.icon;
+    icon.style.cssText = 'float:left;margin-right:12px;font-size:24px;';
+    container.appendChild(icon);
   }
 
-  button.focus();
-}
-
-(window as any).createInformationMessage = createInformationMessage;
-
-// Listen for main-process requests to show an InformationMessage
-(window as any).electronAPI.onPluginShowInformation((_event: any, { message, options, requestId }: {
-  message: string;
-  options: MessageOptions;
-  requestId: string;
-}) => {
-  createInformationMessage(message, options ?? {}, requestId);
-});
-
-// ─── ErrorMessage ─────────────────────────────────────────────────────────────
-
-function createErrorMessage(
-  message: string,
-  options: MessageOptions,
-  requestId: string,
-): void {
-  if (document.getElementById('electron-plugin-errormessage-mask')) return;
-
-  const mask = document.createElement('div');
-  mask.id = 'electron-plugin-errormessage-mask';
-  mask.style.cssText = 'position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.35);z-index:9998;display:block;';
-  document.body.appendChild(mask);
-
-  // Dark-red container
-  const container = document.createElement('div');
-  container.id = 'electron-plugin-errormessage';
-  container.style.cssText = [
-    'background:#4a1a1a', 'color:#fff', 'border:none', 'outline:none',
-    'border-radius:6px', 'box-shadow:0 8px 32px 0 rgba(0,0,0,0.32)',
-    'font-size:16px', 'font-family:inherit',
-    'width:320px', 'padding:16px',
-    'z-index:9999', 'position:fixed', 'left:50%', 'top:80px', 'transform:translateX(-50%)',
-  ].join(';');
-  mask.appendChild(container);
-
-  // Error icon
-  const icon = document.createElement('div');
-  icon.textContent = '❌';
-  icon.style.cssText = 'float:left;margin-right:12px;font-size:24px;';
-  container.appendChild(icon);
-
-  // Message text
   const messageText = document.createElement('div');
   messageText.textContent = message;
   messageText.style.cssText = 'margin-bottom:16px;overflow:hidden;';
   container.appendChild(messageText);
 
-  // Optional detail text (modal only)
   if (options?.modal && options.detail) {
     const detailText = document.createElement('div');
     detailText.textContent = options.detail;
-    detailText.style.cssText = 'margin-bottom:16px;color:#ffcccc;font-size:14px;';
+    detailText.style.cssText = `margin-bottom:16px;color:${config.detailColor ?? '#bbb'};font-size:14px;`;
     container.appendChild(detailText);
   }
 
-  // OK button (red)
   const button = document.createElement('button');
   button.textContent = 'OK';
-  button.style.cssText = 'background:#c62828;color:#fff;border:none;border-radius:4px;padding:8px 16px;cursor:pointer;transition:background 0.2s;';
-  button.onmouseover = () => { button.style.background = '#9c0000'; };
-  button.onmouseout = () => { button.style.background = '#c62828'; };
-  button.onclick = () => {
-    (window as any).electronAPI.sendErrorResponse(requestId, 'OK');
-    cleanup();
-  };
+  button.style.cssText = `background:${config.buttonBg};color:#fff;border:none;border-radius:4px;padding:8px 16px;cursor:pointer;transition:background 0.2s;`;
+  button.onmouseover = () => { button.style.background = config.buttonHover; };
+  button.onmouseout = () => { button.style.background = config.buttonBg; };
+  button.onclick = done;
   container.appendChild(button);
-
-  function onKeyDown(e: KeyboardEvent): void {
-    if (e.key === 'Enter' || e.key === 'Escape') {
-      (window as any).electronAPI.sendErrorResponse(requestId, 'OK');
-      cleanup();
-    }
-  }
-  window.addEventListener('keydown', onKeyDown, true);
-
-  function cleanup(): void {
-    if (container.parentNode) container.parentNode.removeChild(container);
-    if (mask.parentNode) mask.parentNode.removeChild(mask);
-    window.removeEventListener('keydown', onKeyDown, true);
-  }
-
   button.focus();
 }
 
-(window as any).createErrorMessage = createErrorMessage;
+// ─── InformationMessage ───────────────────────────────────────────────────────
 
-// Listen for main-process requests to show an ErrorMessage
-(window as any).electronAPI.onPluginShowError((_event: any, { message, options, requestId }: {
-  message: string;
-  options: MessageOptions;
-  requestId: string;
-}) => {
+function createInformationMessage(message: string, options: MessageOptions, requestId: string): void {
+  createMessageDialog(
+    'electron-plugin-informationmessage',
+    message, options, requestId,
+    (rid) => window.electronAPI.sendInformationResponse(rid),
+    { bg: '#444', buttonBg: '#1565C0', buttonHover: '#104d8e' },
+  );
+}
+
+window.electronAPI.onPluginShowInformation((_event, { message, options, requestId }) => {
+  createInformationMessage(message, options ?? {}, requestId);
+});
+
+// ─── ErrorMessage ─────────────────────────────────────────────────────────────
+
+function createErrorMessage(message: string, options: MessageOptions, requestId: string): void {
+  createMessageDialog(
+    'electron-plugin-errormessage',
+    message, options, requestId,
+    (rid) => window.electronAPI.sendErrorResponse(rid),
+    { bg: '#4a1a1a', buttonBg: '#c62828', buttonHover: '#9c0000', icon: '\u274C', detailColor: '#ffcccc' },
+  );
+}
+
+window.electronAPI.onPluginShowError((_event, { message, options, requestId }) => {
   createErrorMessage(message, options ?? {}, requestId);
 });

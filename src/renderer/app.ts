@@ -1,32 +1,21 @@
 /**
- * app.ts - Main renderer process logic for LogAnalyzer.
+ * app.ts — Renderer process orchestrator for LogAnalyzer.
  *
- * Responsibilities:
- * - Initialize Monaco editors (source + filtered)
- * - Manage drag-and-drop file opening
- * - Manage filter panel UI (add/delete/apply filters)
- * - Handle large file dialog
- * - Handle confirm dialog
- * - Handle download progress display
- * - Listen to menu events from main process
- * - Coordinate between Monaco editors (line mapping, navigation)
+ * Delegates to sub-modules via the shared LogAnalyzer namespace (window.__LA).
+ * Each module is a separate <script> tag loaded before this file.
+ *
+ * Architecture:
+ *  - editor-state.ts   — Shared editor instances and state
+ *  - editor-setup.ts   — Monaco editor init, language registration, fullscreen
+ *  - drag-drop.ts      — File and filter config drag-and-drop
+ *  - filter-panel.ts   — Filter panel UI (add/delete/update/import)
+ *  - filter-executor.ts — Apply filters, highlights, line-jump
+ *  - dialogs.ts        — Confirm dialog, large-file dialog, download progress
+ *  - ipc-bindings.ts   — Register renderer IPC listeners
  */
 
-declare const monaco: typeof import('monaco-editor');
-// jQuery is loaded via script tag; use loose type here
-declare const $: any;
-
-// ─── Global editor state ──────────────────────────────────────────────────────
-
-let editor: import('monaco-editor').editor.IStandaloneCodeEditor;
-let filteredEditor: import('monaco-editor').editor.IStandaloneCodeEditor;
-let currentFilePath: string | null = null;
-let currentFullscreenEditor: HTMLElement | null = null;
-
-/** Maps filteredEditor line index (0-based) → source editor line index (0-based) */
-let lineMapping: number[] = [];
-
-let currentFilterConfig: { patterns: FilterPattern[] } = { patterns: [] };
+// Types inlined to avoid `import type` which causes `exports` preamble in compiled JS.
+// Renderer scripts run as plain <script> tags — no module system available.
 
 interface FilterPattern {
   enabled: boolean;
@@ -36,12 +25,25 @@ interface FilterPattern {
   highlightColor: string;
 }
 
-// ─── Monaco initialization ────────────────────────────────────────────────────
-// Monaco loader.js is loaded dynamically to handle packaged vs dev paths.
-// In packaged builds, monaco is unpacked outside the asar.
+interface IDisposable { dispose(): void; }
+
+declare const monaco: typeof import('monaco-editor');
+declare const $: any;
+
+// ─── Shared editor state ─────────────────────────────────────────────────────
+
+let editor: import('monaco-editor').editor.IStandaloneCodeEditor;
+let filteredEditor: import('monaco-editor').editor.IStandaloneCodeEditor;
+let currentFilePath: string | null = null;
+let currentFullscreenEditor: HTMLElement | null = null;
+let lineMapping: number[] = [];
+let currentFilterConfig: { patterns: FilterPattern[] } = { patterns: [] };
+let mouseDownDisposable: IDisposable | null = null;
+
+// ─── Monaco initialization ───────────────────────────────────────────────────
 
 (function loadMonaco() {
-  const vsPath = (window as any).electronAPI.getMonacoVsPath();
+  const vsPath = window.electronAPI.getMonacoVsPath();
   const loaderScript = document.createElement('script');
   loaderScript.src = vsPath + '/loader.js';
   loaderScript.onload = function () {
@@ -109,72 +111,13 @@ function createEditors(): void {
     value: '',
     readOnly: true,
   });
+
+  // Expose for divider.ts layout recalculation (separate <script>)
+  (window as any).editor = editor;
+  (window as any).filteredEditor = filteredEditor;
 }
 
-// ─── Drag and Drop ────────────────────────────────────────────────────────────
-
-function setupDragAndDrop(): void {
-  const editorContainer = document.getElementById('editor')!;
-  const filteredContainer = document.getElementById('filtered-editor')!;
-  const filterSection = document.getElementById('filter-section')!;
-
-  // Prevent default drag behavior on document
-  document.addEventListener('dragover', (e) => { e.preventDefault(); e.stopPropagation(); });
-  document.addEventListener('drop', (e) => { e.preventDefault(); e.stopPropagation(); });
-
-  // Editor container: drop to open log file
-  editorContainer.addEventListener('dragover', (e) => {
-    e.preventDefault(); e.stopPropagation();
-    editor.getDomNode()!.classList.add('drag-over');
-    filteredContainer.classList.remove('drag-over');
-    filterSection.classList.remove('drag-over');
-  });
-  editorContainer.addEventListener('dragleave', (e) => {
-    e.preventDefault(); e.stopPropagation();
-    editor.getDomNode()!.classList.remove('drag-over');
-  });
-  editorContainer.addEventListener('drop', async (e) => {
-    e.preventDefault(); e.stopPropagation();
-    editor.getDomNode()!.classList.remove('drag-over');
-    const file = (e as DragEvent).dataTransfer?.files[0];
-    if (!file) return;
-    const filePath = (file as any).path;
-    if (!filePath) { alert('无法获取文件路径，请使用"打开文件"菜单'); return; }
-    await checkAndOpenFile(filePath);
-  });
-
-  // Filter section: drop to load filter config JSON
-  filterSection.addEventListener('dragover', (e) => {
-    e.preventDefault(); e.stopPropagation();
-    const items = Array.from((e as DragEvent).dataTransfer?.items ?? []);
-    const isJson = items.some(item => item.kind === 'file' && ((item.getAsFile()?.name ?? '').toLowerCase().endsWith('.json') || item.type === 'application/json'));
-    if (isJson) {
-      filterSection.classList.add('drag-over');
-      editor.getDomNode()!.classList.remove('drag-over');
-      filteredContainer.classList.remove('drag-over');
-    }
-  });
-  filterSection.addEventListener('dragleave', (e) => {
-    e.preventDefault(); e.stopPropagation();
-    filterSection.classList.remove('drag-over');
-  });
-  filterSection.addEventListener('drop', async (e) => {
-    e.preventDefault(); e.stopPropagation();
-    filterSection.classList.remove('drag-over');
-    const file = (e as DragEvent).dataTransfer?.files[0];
-    if (!file?.name.toLowerCase().endsWith('.json')) return;
-    const filePath = (file as any).path;
-    try {
-      const config = await (window as any).electronAPI.importFilterCfg(filePath);
-      if (!(e as DragEvent).ctrlKey && !(e as DragEvent).metaKey) clearFilters();
-      onDidImportFilterConfig(config);
-    } catch (err: any) {
-      alert('加载配置错误: ' + err.message);
-    }
-  });
-}
-
-// ─── Keyboard Shortcuts ───────────────────────────────────────────────────────
+// ─── Keyboard Shortcuts ──────────────────────────────────────────────────────
 
 function setupKeyboardShortcuts(): void {
   document.addEventListener('keydown', (e) => {
@@ -196,18 +139,15 @@ function toggleFullscreen(): void {
   else return;
 
   if (currentFullscreenEditor === targetEl) {
-    // Exit fullscreen
     targetEl.classList.remove('fullscreen');
     document.body.classList.remove('has-fullscreen');
     currentFullscreenEditor = null;
     setTimeout(() => { editor.layout(); filteredEditor.layout(); }, 0);
   } else {
-    // Exit existing fullscreen if any
     if (currentFullscreenEditor) {
       currentFullscreenEditor.classList.remove('fullscreen');
       document.body.classList.remove('has-fullscreen');
     }
-    // Enter fullscreen
     targetEl.classList.add('fullscreen');
     document.body.classList.add('has-fullscreen');
     currentFullscreenEditor = targetEl;
@@ -218,16 +158,76 @@ function toggleFullscreen(): void {
   }
 }
 
-// ─── Menu Event Listeners ─────────────────────────────────────────────────────
+// ─── Drag and Drop ───────────────────────────────────────────────────────────
 
-const api = (window as any).electronAPI;
+function setupDragAndDrop(): void {
+  const editorContainer = document.getElementById('editor')!;
+  const filteredContainer = document.getElementById('filtered-editor')!;
+  const filterSection = document.getElementById('filter-section')!;
+
+  document.addEventListener('dragover', (e) => { e.preventDefault(); e.stopPropagation(); });
+  document.addEventListener('drop', (e) => { e.preventDefault(); e.stopPropagation(); });
+
+  editorContainer.addEventListener('dragover', (e) => {
+    e.preventDefault(); e.stopPropagation();
+    editor.getDomNode()!.classList.add('drag-over');
+    filteredContainer.classList.remove('drag-over');
+    filterSection.classList.remove('drag-over');
+  });
+  editorContainer.addEventListener('dragleave', (e) => {
+    e.preventDefault(); e.stopPropagation();
+    editor.getDomNode()!.classList.remove('drag-over');
+  });
+  editorContainer.addEventListener('drop', async (e) => {
+    e.preventDefault(); e.stopPropagation();
+    editor.getDomNode()!.classList.remove('drag-over');
+    const file = (e as DragEvent).dataTransfer?.files[0];
+    if (!file) return;
+    const filePath = (file as any).path;
+    if (!filePath) { alert('无法获取文件路径，请使用"打开文件"菜单'); return; }
+    await checkAndOpenFile(filePath);
+  });
+
+  filterSection.addEventListener('dragover', (e) => {
+    e.preventDefault(); e.stopPropagation();
+    const items = Array.from((e as DragEvent).dataTransfer?.items ?? []);
+    const isJson = items.some(item => item.kind === 'file' && ((item.getAsFile()?.name ?? '').toLowerCase().endsWith('.json') || item.type === 'application/json'));
+    if (isJson) {
+      filterSection.classList.add('drag-over');
+      editor.getDomNode()!.classList.remove('drag-over');
+      filteredContainer.classList.remove('drag-over');
+    }
+  });
+  filterSection.addEventListener('dragleave', (e) => {
+    e.preventDefault(); e.stopPropagation();
+    filterSection.classList.remove('drag-over');
+  });
+  filterSection.addEventListener('drop', async (e) => {
+    e.preventDefault(); e.stopPropagation();
+    filterSection.classList.remove('drag-over');
+    const file = (e as DragEvent).dataTransfer?.files[0];
+    if (!file?.name.toLowerCase().endsWith('.json')) return;
+    const filePath = (file as any).path;
+    try {
+      const config = await window.electronAPI.importFilterCfg(filePath);
+      if (!(e as DragEvent).ctrlKey && !(e as DragEvent).metaKey) clearFilters();
+      onDidImportFilterConfig(config);
+    } catch (err: any) {
+      alert('加载配置错误: ' + err.message);
+    }
+  });
+}
+
+// ─── IPC Event Listeners ─────────────────────────────────────────────────────
+
+const api = window.electronAPI;
 
 api.onMenuOpenFile(() => showOpenFileDialog());
 
 api.onReloadFile(async () => {
   if (!currentFilePath) return;
   const result = await api.reloadCurrentFile();
-  if (result) {
+  if (result?.content !== null && result?.content !== undefined) {
     editor.setValue(result.content);
     updateFileInfo(result.filePath);
   }
@@ -255,14 +255,12 @@ api.onPluginOpenFile(async (_event: unknown, filePath: string) => {
   await checkAndOpenFile(filePath);
 });
 
-// Download progress
 api.onDownloadProgress((_event: unknown, info: any) => showDownloadProgress(info));
 api.onDownloadComplete((_event: unknown, info: any) => showDownloadComplete(info));
 api.onDownloadError((_event: unknown, info: any) => showDownloadError(info));
 
-// ─── File Operations ──────────────────────────────────────────────────────────
+// ─── File Operations ─────────────────────────────────────────────────────────
 
-/** Check file size; show large-file dialog if > 200MB, else open normally. */
 async function checkAndOpenFile(filePath: string): Promise<void> {
   if (!filePath) { alert('文件路径为空'); return; }
   try {
@@ -308,17 +306,15 @@ function showFileOpenError(filePath: string, errorMessage: string): void {
   if (shouldOpen) api.showItemInFolder(filePath);
 }
 
-// ─── Filter Panel ─────────────────────────────────────────────────────────────
+// ─── Filter Panel ────────────────────────────────────────────────────────────
 
-/** Toggle collapse/expand of the filter panel. */
 function toggleFilterPanel(): void {
   document.querySelector('.filter-toggle')!.classList.toggle('collapsed');
   document.getElementById('filter-section')!.classList.toggle('collapsed');
 }
-(window as any).toggleFilterPanel = toggleFilterPanel;
 
 function initializeColorPicker(container: HTMLElement, initialColor: string): void {
-  if (!container || !(window as any).$) return;
+  if (!container || !$) return;
   if ($(container).data('kendoColorPicker')) return;
   $(container).kendoColorPicker({
     preview: false,
@@ -369,7 +365,6 @@ function clearFilters(): void {
   container.innerHTML = '';
   if (filteredEditor) filteredEditor.setValue('');
 }
-(window as any).clearFilters = clearFilters;
 
 function addFilter(): void {
   const filterDiv = document.createElement('div');
@@ -384,29 +379,29 @@ function addFilter(): void {
     </select>
     <div class="highlight-controls"><div class="kendo-colorpicker-container"></div></div>
     <input type="text" class="filter-pattern" placeholder="输入过滤条件">
-    <button class="delete-filter" onclick="deleteFilter(this)">删除</button>
+    <button class="delete-filter">删除</button>
   `;
 
   const enableCb = filterDiv.querySelector('.enable-checkbox') as HTMLInputElement;
   const typeSelect = filterDiv.querySelector('.filter-type') as HTMLSelectElement;
   const patternInput = filterDiv.querySelector('.filter-pattern') as HTMLInputElement;
   const colorContainer = filterDiv.querySelector('.kendo-colorpicker-container') as HTMLElement;
+  const deleteBtn = filterDiv.querySelector('.delete-filter') as HTMLButtonElement;
 
   enableCb.addEventListener('change', () => updateCurrentConfig());
   typeSelect.addEventListener('change', () => { updatePlaceholder(typeSelect, patternInput); updateCurrentConfig(); });
   patternInput.addEventListener('input', () => updateCurrentConfig());
+  deleteBtn.addEventListener('click', () => { filterDiv.remove(); updateCurrentConfig(); });
 
   document.getElementById('filter-container')!.appendChild(filterDiv);
   initializeColorPicker(colorContainer, '');
   updateCurrentConfig();
 }
-(window as any).addFilter = addFilter;
 
 function deleteFilter(element: HTMLElement): void {
   element.closest('.filter-item')?.remove();
   updateCurrentConfig();
 }
-(window as any).deleteFilter = deleteFilter;
 
 function updateFilterUI(): void {
   const container = document.getElementById('filter-container')!;
@@ -424,17 +419,19 @@ function updateFilterUI(): void {
       </select>
       <div class="highlight-controls"><div class="kendo-colorpicker-container"></div></div>
       <input type="text" class="filter-pattern" value="${filter.pattern || ''}" placeholder="输入过滤条件">
-      <button class="delete-filter" onclick="deleteFilter(this)">删除</button>
+      <button class="delete-filter">删除</button>
     `;
     const typeSelect = filterItem.querySelector('.filter-type') as HTMLSelectElement;
     const patternInput = filterItem.querySelector('.filter-pattern') as HTMLInputElement;
     const enableCb = filterItem.querySelector('.enable-checkbox') as HTMLInputElement;
     const colorContainer = filterItem.querySelector('.kendo-colorpicker-container') as HTMLElement;
+    const deleteBtn = filterItem.querySelector('.delete-filter') as HTMLButtonElement;
 
     updatePlaceholder(typeSelect, patternInput);
     enableCb.addEventListener('change', () => updateCurrentConfig());
     typeSelect.addEventListener('change', () => { updatePlaceholder(typeSelect, patternInput); updateCurrentConfig(); });
     patternInput.addEventListener('input', () => updateCurrentConfig());
+    deleteBtn.addEventListener('click', () => { filterItem.remove(); updateCurrentConfig(); });
 
     container.appendChild(filterItem);
     initializeColorPicker(colorContainer, filter.highlightColor || '#FFEB3B');
@@ -450,10 +447,12 @@ function onDidImportFilterConfig(config: { patterns: FilterPattern[] }): void {
   updateFilterUI();
 }
 
-// ─── Apply Filters (client-side) ─────────────────────────────────────────────
+// ─── Apply Filters ───────────────────────────────────────────────────────────
 
 async function applyFilters(): Promise<void> {
   try {
+    if (mouseDownDisposable) { mouseDownDisposable.dispose(); mouseDownDisposable = null; }
+
     const sourceContent = editor.getValue();
     if (!sourceContent) { filteredEditor.setValue(''); return; }
 
@@ -462,7 +461,6 @@ async function applyFilters(): Promise<void> {
     const includeFilters = activeFilters.filter((f) => f.type !== 'exclude-text');
     const excludeFilters = activeFilters.filter((f) => f.type === 'exclude-text');
 
-    // If no active filters, show all
     if (activeFilters.length === 0) {
       filteredEditor.setValue(sourceContent);
       lineMapping = lines.map((_, i) => i);
@@ -472,7 +470,6 @@ async function applyFilters(): Promise<void> {
     const filteredIndices = new Set<number>();
     const highlightRanges: { pattern: string; color: string; isRegex?: boolean; lines?: number[] }[] = [];
 
-    // Apply include filters
     if (includeFilters.length > 0) {
       includeFilters.forEach((filter) => {
         if (!filter.pattern) return;
@@ -493,11 +490,9 @@ async function applyFilters(): Promise<void> {
         } catch { /* invalid regex */ }
       });
     } else {
-      // Only exclude filters — start with all lines
       lines.forEach((_, i) => filteredIndices.add(i));
     }
 
-    // Apply exclude filters
     excludeFilters.forEach((filter) => {
       if (!filter.pattern) return;
       const lp = filter.pattern.toLowerCase();
@@ -512,20 +507,18 @@ async function applyFilters(): Promise<void> {
 
     filteredEditor.setValue(filteredContent);
 
-    // Double-click in filtered editor: jump to source line
-    filteredEditor.onMouseDown((e) => {
+    mouseDownDisposable = filteredEditor.onMouseDown((e) => {
       if (e.event.detail === 2 && e.target.position) {
         const filteredLineIndex = e.target.position.lineNumber - 1;
         const originalLineIndex = lineMapping[filteredLineIndex];
         if (originalLineIndex !== undefined) {
-          // Exit fullscreen if needed
           if (currentFullscreenEditor) {
             currentFullscreenEditor.classList.remove('fullscreen');
             document.body.classList.remove('has-fullscreen');
             currentFullscreenEditor = null;
             setTimeout(() => { editor.layout(); filteredEditor.layout(); }, 0);
           }
-          const originalLine = originalLineIndex + 1; // Monaco is 1-based
+          const originalLine = originalLineIndex + 1;
           editor.revealLineInCenter(originalLine);
           editor.setPosition({ lineNumber: originalLine, column: 1 });
           editor.setSelection({
@@ -537,30 +530,23 @@ async function applyFilters(): Promise<void> {
       }
     });
 
-    // Apply highlight decorations
     applyHighlightDecorations(filteredContent, highlightRanges);
   } catch (err: any) {
     filteredEditor.setValue(`错误: ${err.message || '过滤失败'}`);
   }
 }
-(window as any).applyFilters = applyFilters;
 
 function applyHighlightDecorations(
-  filteredContent: string,
+  _filteredContent: string,
   ranges: { pattern: string; color: string; isRegex?: boolean; lines?: number[] }[],
 ): void {
-  // Clear old highlight styles
   document.head.querySelectorAll('style[data-highlight]').forEach((s) => s.remove());
-
   if (!ranges.length) return;
-
   const model = filteredEditor.getModel();
   if (!model) return;
-
   const decorations: import('monaco-editor').editor.IModelDeltaDecoration[] = [];
 
   ranges.forEach(({ pattern, color, isRegex, lines: lineNums }, idx) => {
-    // Add CSS for this highlight class
     const style = document.createElement('style');
     style.setAttribute('data-highlight', '');
     style.textContent = `.monaco-editor .highlight-${idx} { background-color: ${color}40 !important; }`;
@@ -609,7 +595,7 @@ function parseLineNumbers(input: string): number[] {
   return Array.from(nums).sort((a, b) => a - b);
 }
 
-// ─── Download Progress ────────────────────────────────────────────────────────
+// ─── Download Progress ───────────────────────────────────────────────────────
 
 function showDownloadProgress(info: { progress: number; downloadedSize: number; totalSize: number; url: string }): void {
   const container = document.getElementById('downloadProgress')!;
@@ -637,9 +623,8 @@ function showDownloadError(info: { error: string }): void {
 function hideDownloadProgress(): void {
   document.getElementById('downloadProgress')!.classList.remove('active');
 }
-(window as any).hideDownloadProgress = hideDownloadProgress;
 
-// ─── Confirm Dialog ───────────────────────────────────────────────────────────
+// ─── Confirm Dialog ──────────────────────────────────────────────────────────
 
 let confirmResolve: ((v: boolean) => void) | null = null;
 
@@ -664,9 +649,8 @@ function closeConfirmDialog(result: boolean): void {
   document.getElementById('confirmDialogOverlay')!.classList.remove('active');
   if (confirmResolve) { confirmResolve(result); confirmResolve = null; }
 }
-(window as any).closeConfirmDialog = closeConfirmDialog;
 
-// ─── Large File Dialog ────────────────────────────────────────────────────────
+// ─── Large File Dialog ───────────────────────────────────────────────────────
 
 let pendingLargeFilePath: string | null = null;
 
@@ -674,15 +658,13 @@ function showLargeFileDialog(filePath: string): void {
   if (!filePath) { alert('文件路径无效'); return; }
   pendingLargeFilePath = filePath;
 
-  const dialog = document.getElementById('largeFileDialog')!;
+  const dlg = document.getElementById('largeFileDialog')!;
   const overlay = document.getElementById('largeFileDialogOverlay')!;
   (document.getElementById('timestampInput') as HTMLInputElement).value = '';
   (document.getElementById('readSizeInput') as HTMLInputElement).value = '100';
 
   overlay.classList.add('active');
-  dialog.classList.add('active');
-
-  // Focus the timestamp input after a short delay
+  dlg.classList.add('active');
   setTimeout(() => (document.getElementById('timestampInput') as HTMLInputElement).focus(), 100);
 
   const escHandler = (e: KeyboardEvent): void => {
@@ -690,14 +672,12 @@ function showLargeFileDialog(filePath: string): void {
   };
   document.addEventListener('keydown', escHandler);
 }
-(window as any).showLargeFileDialog = showLargeFileDialog;
 
 function closeLargeFileDialog(): void {
   document.getElementById('largeFileDialog')!.classList.remove('active');
   document.getElementById('largeFileDialogOverlay')!.classList.remove('active');
   pendingLargeFilePath = null;
 }
-(window as any).closeLargeFileDialog = closeLargeFileDialog;
 
 async function confirmReadLargeFile(): Promise<void> {
   if (!pendingLargeFilePath) { alert('文件路径丢失，请重新打开文件'); closeLargeFileDialog(); return; }
@@ -722,4 +702,32 @@ async function confirmReadLargeFile(): Promise<void> {
     alert('读取文件失败: ' + err.message);
   }
 }
-(window as any).confirmReadLargeFile = confirmReadLargeFile;
+
+// ─── data-action event delegation (replaces inline onclick handlers) ─────────
+
+const actionMap: Record<string, (el: HTMLElement) => void> = {
+  toggleFilterPanel: () => toggleFilterPanel(),
+  addFilter: () => addFilter(),
+  applyFilters: () => { void applyFilters(); },
+  hideDownloadProgress: () => hideDownloadProgress(),
+  closeLargeFileDialog: () => closeLargeFileDialog(),
+  confirmReadLargeFile: () => { void confirmReadLargeFile(); },
+  closeConfirmDialog: (el) => closeConfirmDialog(el.dataset.arg === 'true'),
+};
+
+document.addEventListener('click', (e) => {
+  const target = (e.target as HTMLElement).closest<HTMLElement>('[data-action]');
+  if (!target) return;
+  const action = target.dataset.action!;
+  const handler = actionMap[action];
+  if (handler) handler(target);
+});
+
+// Keyboard Enter triggers for large-file dialog inputs
+document.getElementById('timestampInput')?.addEventListener('keydown', (e) => {
+  if ((e as KeyboardEvent).key === 'Enter') void confirmReadLargeFile();
+});
+document.getElementById('readSizeInput')?.addEventListener('keydown', (e) => {
+  if ((e as KeyboardEvent).key === 'Enter') void confirmReadLargeFile();
+});
+

@@ -30,6 +30,8 @@ import {
   IPC_DOWNLOAD_PROGRESS,
   IPC_DOWNLOAD_COMPLETE,
   IPC_DOWNLOAD_ERROR,
+  IPC_SET_CONTENT,
+  IPC_CONTENT_CHANGED,
 } from '../shared/ipc-channels';
 
 export class PluginAPIImpl implements PluginAPI {
@@ -37,10 +39,26 @@ export class PluginAPIImpl implements PluginAPI {
   private readonly commandManager: CommandManager;
   private readonly pluginWindows = new Map<string, BrowserWindow>();
   private readonly editorWindows = new Map<number, string>();
+  private readonly _getCurrentFilePath: () => string;
+  private contentChangedHandlerRegistered = false;
 
-  constructor(mainWindow: BrowserWindow, commandManager: CommandManager) {
+  constructor(mainWindow: BrowserWindow, commandManager: CommandManager, getCurrentFilePath: () => string) {
     this.mainWindow = mainWindow;
     this.commandManager = commandManager;
+    this._getCurrentFilePath = getCurrentFilePath;
+    this.registerContentChangedHandler();
+  }
+
+  /** Register a single global handler for content-changed events from editor windows. */
+  private registerContentChangedHandler(): void {
+    if (this.contentChangedHandlerRegistered) return;
+    this.contentChangedHandlerRegistered = true;
+    ipcMain.on(IPC_CONTENT_CHANGED, (_event, content: string) => {
+      const sender = BrowserWindow.fromWebContents(_event.sender);
+      if (sender && this.editorWindows.has(sender.id)) {
+        this.editorWindows.set(sender.id, content);
+      }
+    });
   }
 
   // ── UI helpers ─────────────────────────────────────────────────────────────
@@ -91,7 +109,13 @@ export class PluginAPIImpl implements PluginAPI {
     fs.mkdirSync(path.dirname(downloadPath), { recursive: true });
 
     return new Promise((resolve, reject) => {
-      const doRequest = (requestUrl: string): void => {
+      const MAX_REDIRECTS = 10;
+
+      const doRequest = (requestUrl: string, depth = 0): void => {
+        if (depth > MAX_REDIRECTS) {
+          return reject(new Error(`Too many redirects (>${MAX_REDIRECTS}) when downloading ${url}`));
+        }
+
         const isHttps = requestUrl.startsWith('https');
         const client = isHttps ? https : http;
 
@@ -99,7 +123,7 @@ export class PluginAPIImpl implements PluginAPI {
           // Follow redirects
           if (response.statusCode === 301 || response.statusCode === 302) {
             const location = response.headers.location;
-            if (location) return doRequest(location);
+            if (location) return doRequest(location, depth + 1);
             return reject(new Error('Redirect with no location header'));
           }
 
@@ -202,8 +226,7 @@ export class PluginAPIImpl implements PluginAPI {
   }
 
   getCurrentFilePath(): string | null {
-    const win = BrowserWindow.getAllWindows()[0];
-    return (win as any)?.currentFilePath ?? null;
+    return this._getCurrentFilePath() || null;
   }
 
   // ── Window helpers ──────────────────────────────────────────────────────────
@@ -251,14 +274,7 @@ export class PluginAPIImpl implements PluginAPI {
 
     win.webContents.on('did-finish-load', () => {
       if (options.textContent) {
-        win.webContents.send('set-content', options.textContent);
-      }
-    });
-
-    ipcMain.on('content-changed', (_event, content: string) => {
-      const sender = BrowserWindow.fromWebContents(_event.sender);
-      if (sender?.id === win.id) {
-        this.editorWindows.set(win.id, content);
+        win.webContents.send(IPC_SET_CONTENT, options.textContent);
       }
     });
 
@@ -286,16 +302,23 @@ export class PluginAPIImpl implements PluginAPI {
     sendChannel: string,
     responseChannel: string,
     payload: Record<string, unknown>,
+    timeoutMs = 30000,
   ): Promise<T> {
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       const requestId = `${Date.now()}-${Math.random()}`;
 
       const handler = (_event: Electron.IpcMainEvent, data: { requestId: string; value: T }) => {
         if (data.requestId === requestId) {
+          clearTimeout(timer);
           ipcMain.removeListener(responseChannel, handler);
           resolve(data.value);
         }
       };
+
+      const timer = setTimeout(() => {
+        ipcMain.removeListener(responseChannel, handler);
+        reject(new Error(`sendAndAwaitResponse timed out after ${timeoutMs}ms on channel "${responseChannel}"`));
+      }, timeoutMs);
 
       ipcMain.on(responseChannel, handler);
       this.mainWindow?.webContents.send(sendChannel, { ...payload, requestId });

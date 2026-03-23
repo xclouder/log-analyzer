@@ -48,6 +48,13 @@ import {
   IPC_DOWNLOAD_COMPLETE,
   IPC_DOWNLOAD_ERROR,
   IPC_TOGGLE_LOGGING,
+  IPC_SET_CONTENT,
+  IPC_CONTENT_CHANGED,
+  IPC_WINDOW_MINIMIZE,
+  IPC_WINDOW_MAXIMIZE,
+  IPC_WINDOW_CLOSE,
+  IPC_WINDOW_IS_MAXIMIZED,
+  IPC_MENU_SAVE_FILE,
 } from '../shared/ipc-channels';
 
 // ── Compute resource paths for renderer ────────────────────────────────────────
@@ -103,7 +110,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // ── Menu events (main → renderer) ─────────────────────────────────────────
   onMenuOpenFile: (cb: Callback) => ipcRenderer.on(IPC_MENU_OPEN_FILE, cb),
-  onMenuSaveFile: (cb: Callback) => ipcRenderer.on('menu:save-file', cb),
+  onMenuSaveFile: (cb: Callback) => ipcRenderer.on(IPC_MENU_SAVE_FILE, cb),
   onReloadFile: (cb: Callback) => ipcRenderer.on(IPC_MENU_RELOAD_FILE, cb),
   onMenuShowInFolder: (cb: Callback) => ipcRenderer.on(IPC_MENU_SHOW_IN_FOLDER, cb),
 
@@ -139,13 +146,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onToggleLogging: (cb: Callback) => ipcRenderer.on(IPC_TOGGLE_LOGGING, cb),
 
   // ── Window controls ────────────────────────────────────────────────────────
-  minimize: () => ipcRenderer.send('window-minimize'),
-  maximize: () => ipcRenderer.send('window-maximize'),
-  close: () => ipcRenderer.send('window-close'),
-  isMaximized: () => ipcRenderer.invoke('window-is-maximized'),
+  minimize: () => ipcRenderer.send(IPC_WINDOW_MINIMIZE),
+  maximize: () => ipcRenderer.send(IPC_WINDOW_MAXIMIZE),
+  close: () => ipcRenderer.send(IPC_WINDOW_CLOSE),
+  isMaximized: () => ipcRenderer.invoke(IPC_WINDOW_IS_MAXIMIZED),
 
-  // ── showInputBox legacy (used by plugin:showInputBox in original) ──────────
-  showInputBox: (options: any) => ipcRenderer.invoke('plugin:showInputBox', options),
+  // ── Editor window (used by editor.html) ────────────────────────────────────
+  onSetContent: (cb: Callback) => ipcRenderer.on(IPC_SET_CONTENT, cb),
+  sendContentChanged: (content: string) => ipcRenderer.send(IPC_CONTENT_CHANGED, content),
+
 });
 
 // ── Plugin open-file bridge ────────────────────────────────────────────────────

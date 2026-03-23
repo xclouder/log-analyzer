@@ -38,7 +38,6 @@ function stopDragging(): void {
   if (!isDragging) return;
   isDragging = false;
   // Tell Monaco editors to recalculate their layout
-  const w = window as any;
-  if (w.editor) w.editor.layout();
-  if (w.filteredEditor) w.filteredEditor.layout();
+  if ((window as any).editor) (window as any).editor.layout();
+  if ((window as any).filteredEditor) (window as any).filteredEditor.layout();
 }

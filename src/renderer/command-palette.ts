@@ -7,20 +7,23 @@
  * Uses window.electronAPI to search and execute commands via IPC.
  */
 
+// IDisposable inlined to avoid `import type` which causes `exports` preamble.
+interface IDisposable { dispose(): void; }
+
+// Re-implement Disposable locally since renderer can't use require()
+class Disposable implements IDisposable {
+  private disposed = false;
+  private readonly disposeAction: () => void;
+  constructor(disposeAction: () => void) { this.disposeAction = disposeAction; }
+  dispose(): void {
+    if (!this.disposed) { this.disposed = true; this.disposeAction(); }
+  }
+}
+
 interface CommandEntry {
   id: string;
   title: string;
   category?: string;
-}
-
-class Disposable {
-  private readonly disposeAction: () => void;
-  constructor(disposeAction: () => void) {
-    this.disposeAction = disposeAction;
-  }
-  dispose(): void {
-    this.disposeAction();
-  }
 }
 
 class CommandPalette {
@@ -95,12 +98,12 @@ class CommandPalette {
     this.overlay.addEventListener('click', () => this.hide());
 
     // Listen for command registry changes (main → renderer)
-    (window as any).electronAPI.onCommandRegister(() => {
+    window.electronAPI.onCommandRegister(() => {
       console.log('Commands updated (registered)');
       void this.filterCommands();
     });
 
-    (window as any).electronAPI.onCommandUnregister(() => {
+    window.electronAPI.onCommandUnregister(() => {
       console.log('Commands updated (unregistered)');
       void this.filterCommands();
     });
@@ -126,7 +129,7 @@ class CommandPalette {
 
   private async filterCommands(): Promise<void> {
     const query = this.input.value;
-    this.filteredCommands = await (window as any).electronAPI.searchCommands(query);
+    this.filteredCommands = await window.electronAPI.searchCommands(query);
     this.renderCommands();
     this.selectedIndex = this.filteredCommands.length > 0 ? 0 : -1;
     this.updateSelection();
@@ -196,12 +199,12 @@ class CommandPalette {
       const command = this.filteredCommands[this.selectedIndex];
       console.log('Executing command:', command.id);
       this.hide();
-      await (window as any).electronAPI.executeCommand(command.id);
+      await window.electronAPI.executeCommand(command.id);
     }
   }
 }
 
 // Initialise after DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
-  (window as any).commandPalette = new CommandPalette();
+  (window as any).commandPalette = new CommandPalette(); // exposed for external access
 });

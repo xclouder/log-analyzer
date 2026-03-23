@@ -8,12 +8,22 @@
  * - Opening the user plugins directory
  */
 
+// Types and utilities inlined to avoid `import` which causes `exports`/`require`
+// errors in renderer scripts (no module system in <script> context).
+
 interface PluginInfo {
   name: string;
   version: string;
   description?: string;
   author: string;
-  isBuiltin?: boolean;
+  isBuiltin: boolean;
+}
+
+const ESCAPE_MAP: Record<string, string> = {
+  '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+};
+function escapeHtml(s: string): string {
+  return s.replace(/[&<>"']/g, (ch) => ESCAPE_MAP[ch]);
 }
 
 interface PluginOperationResult {
@@ -21,7 +31,7 @@ interface PluginOperationResult {
   error?: string;
 }
 
-const pluginManager = (window as any).electronAPI.pluginManager as {
+const pluginManager = window.electronAPI.pluginManager as {
   getPlugins(): Promise<PluginInfo[]>;
   installPlugin(filePath: string): Promise<PluginOperationResult>;
   uninstallPlugin(name: string): Promise<PluginOperationResult>;
@@ -38,21 +48,30 @@ async function loadPlugins(): Promise<void> {
   plugins.forEach((plugin) => {
     const pluginElement = document.createElement('div');
     pluginElement.className = 'plugin-item';
+    const safeName = escapeHtml(plugin.name);
+    const safeVersion = escapeHtml(plugin.version);
+    const safeDescription = escapeHtml(plugin.description ?? '无描述');
+    const safeAuthor = escapeHtml(plugin.author);
     pluginElement.innerHTML = `
       <div class="plugin-header">
-        <span class="plugin-name">${plugin.name}</span>
-        <span class="plugin-version">v${plugin.version}</span>
+        <span class="plugin-name">${safeName}</span>
+        <span class="plugin-version">v${safeVersion}</span>
       </div>
-      <div class="plugin-description">${plugin.description ?? '无描述'}</div>
-      <div class="plugin-author">作者: ${plugin.author}</div>
+      <div class="plugin-description">${safeDescription}</div>
+      <div class="plugin-author">作者: ${safeAuthor}</div>
       <div class="plugin-actions">
         <button class="btn btn-danger"
-                onclick="uninstallPlugin('${plugin.name}')"
+                data-plugin-name="${safeName}"
                 ${plugin.isBuiltin ? 'disabled' : ''}>
           ${plugin.isBuiltin ? '内置插件' : '删除'}
         </button>
       </div>
     `;
+    // Bind uninstall via addEventListener instead of inline onclick (XSS-safe)
+    const btn = pluginElement.querySelector('.btn-danger') as HTMLButtonElement;
+    if (btn && !plugin.isBuiltin) {
+      btn.addEventListener('click', () => uninstallPlugin(plugin.name));
+    }
     pluginList.appendChild(pluginElement);
   });
 }
@@ -73,8 +92,6 @@ async function uninstallPlugin(pluginName: string): Promise<void> {
     alert('删除插件时发生错误: ' + err.message);
   }
 }
-(window as any).uninstallPlugin = uninstallPlugin;
-
 // ─── Install ──────────────────────────────────────────────────────────────────
 
 async function handlePluginInstall(file: File): Promise<void> {
@@ -131,9 +148,16 @@ fileInput.addEventListener('change', async () => {
 // ─── Open plugins directory ───────────────────────────────────────────────────
 
 function openUserPluginsDir(): void {
-  (window as any).electronAPI.openUserPluginsDir();
+  window.electronAPI.openUserPluginsDir();
 }
-(window as any).openUserPluginsDir = openUserPluginsDir;
+
+// ─── data-action event delegation ────────────────────────────────────────────
+
+document.addEventListener('click', (e) => {
+  const target = (e.target as HTMLElement).closest<HTMLElement>('[data-action]');
+  if (!target) return;
+  if (target.dataset.action === 'openUserPluginsDir') openUserPluginsDir();
+});
 
 // ─── Initialise ───────────────────────────────────────────────────────────────
 

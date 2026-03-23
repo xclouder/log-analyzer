@@ -1,27 +1,10 @@
 import type { PluginBase } from './plugin-base';
 import type { PluginAPI } from './plugin-api';
 import type { PluginMetadata } from '../shared/types';
+import { Disposable } from '../shared/disposable';
 
-/**
- * A Disposable represents a cleanup action. Calling dispose() runs the action once.
- * Disposables are used to clean up command registrations and other resources
- * when a plugin is deactivated.
- */
-export class Disposable {
-  private disposed = false;
-  private readonly disposeAction: () => void;
-
-  constructor(disposeAction: () => void) {
-    this.disposeAction = disposeAction;
-  }
-
-  dispose(): void {
-    if (!this.disposed) {
-      this.disposed = true;
-      this.disposeAction();
-    }
-  }
-}
+// Re-export Disposable so existing imports from this module continue to work
+export { Disposable };
 
 /**
  * PluginContext is passed to a plugin's onActivate() method.

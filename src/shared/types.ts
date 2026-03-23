@@ -94,6 +94,12 @@ export interface MessageOptions {
   detail?: string;
 }
 
+/** Item in a QuickPick list */
+export interface QuickPickItem {
+  label: string;
+  [key: string]: unknown;
+}
+
 /** Download progress info */
 export interface DownloadProgress {
   url: string;

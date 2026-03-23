@@ -3,6 +3,10 @@
  * Commands are registered by plugins and the core app. The renderer can search and execute them.
  */
 
+import { getLogger } from './log-util';
+
+const logger = getLogger('CommandManager');
+
 export interface Command {
   id: string;
   title: string;
@@ -20,7 +24,7 @@ export class CommandManager {
   /** Register a command. Warns if already registered. */
   registerCommand(id: string, title: string, category: string, action: () => void): void {
     if (this.commands.has(id)) {
-      console.warn(`[CommandManager] Command already registered: ${id}`);
+      logger.warn(`Command already registered: ${id}`);
       return;
     }
     this.commands.set(id, { command: { id, title, category }, action });
@@ -29,7 +33,7 @@ export class CommandManager {
   /** Remove a registered command. */
   unregisterCommand(id: string): void {
     if (!this.commands.has(id)) {
-      console.warn(`[CommandManager] Command not found: ${id}`);
+      logger.warn(`Command not found: ${id}`);
       return;
     }
     this.commands.delete(id);
@@ -39,13 +43,13 @@ export class CommandManager {
   executeCommand(id: string): void {
     const entry = this.commands.get(id);
     if (!entry) {
-      console.error(`[CommandManager] Command not found: ${id}`);
+      logger.error(`Command not found: ${id}`);
       return;
     }
     try {
       entry.action();
     } catch (error) {
-      console.error(`[CommandManager] Error executing command ${id}:`, error);
+      logger.error(`Error executing command ${id}:`, error);
     }
   }
 

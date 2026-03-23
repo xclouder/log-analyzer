@@ -45,6 +45,15 @@ class PluginBase {
 
   /** Called before a file is closed. */
   async onWillCloseFile(_context: PluginContext): Promise<void> {}
+
+  /**
+   * Called after file content is read. Can transform the content
+   * (e.g., parse binary format, add annotations). Return original content
+   * to proceed normally.
+   */
+  async processFile(_filePath: string, content: string): Promise<string> {
+    return content;
+  }
 }
 
 // Both named export (for TypeScript imports) and module.exports (for plugin require())
