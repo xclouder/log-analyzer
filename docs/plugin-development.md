@@ -2,7 +2,9 @@
 
 ## 概述
 
-LogAnalyzer 支持通过插件扩展功能。插件可以：
+LogAnalyzer 支持通过插件扩展功能。插件可以使用 **JavaScript** 或 **TypeScript** 编写。TypeScript 插件通过 `loganalyzer-plugin-sdk` 获得完整的类型提示，开发者自行编译为 JavaScript 后打包分发。
+
+插件可以：
 
 - 拦截并处理文件打开流程（解压、解密、转换路径等）
 - 变换文件内容（过滤、格式化、解码等）
@@ -23,9 +25,9 @@ npm install
 npx log-analyzer-plugin init
 ```
 
-交互式提示会引导你创建插件目录结构。
+交互式提示会引导你创建插件目录结构。在语言选择步骤中，可以选择 **JavaScript** 或 **TypeScript**。
 
-### 方式二：手动创建
+### 方式二：手动创建（JavaScript）
 
 创建如下目录结构：
 
@@ -34,6 +36,19 @@ my-plugin/
 ├── package.json   # 必须 — 元数据 + 命令声明
 ├── index.js       # 必须 — 工厂函数入口
 └── README.md      # 可选
+```
+
+### 方式三：手动创建（TypeScript）
+
+```
+my-plugin/
+├── src/
+│   └── index.ts       # TypeScript 源码
+├── dist/
+│   └── index.js       # 编译产物（tsc 生成）
+├── package.json       # 必须 — main 指向 dist/index.js
+├── tsconfig.json      # TypeScript 编译配置
+└── README.md          # 可选
 ```
 
 ---
@@ -86,7 +101,7 @@ my-plugin/
 |------|------|------|
 | `name` | ✅ | 唯一标识符，kebab-case 格式 |
 | `version` | ✅ | 语义化版本号 |
-| `main` | ✅ | 入口文件路径（通常为 `index.js`） |
+| `main` | ✅ | 入口文件路径（`index.js` 或 `index.ts`） |
 | `author` | ✅ | 作者名称 |
 | `title` | | 显示名称，用作命令分类的回退值 |
 | `description` | | 在插件管理器中展示的描述文本 |
@@ -142,6 +157,174 @@ module.exports = function(pluginBasePath) {
 ```
 
 **为什么用这种模式：** 插件是独立的 `.js` 文件，无法直接 `require` 应用内部模块。宿主程序在运行时将 `plugin-base.js` 的绝对路径传入，让插件可以继承基类。
+
+---
+
+## TypeScript 插件开发
+
+### Plugin SDK
+
+`loganalyzer-plugin-sdk` 是专门为 TypeScript 插件开发提供的 SDK 包，包含：
+
+- 完整的 TypeScript 类型声明（`PluginAPI`、`PluginContext`、`PluginBase` 等）
+- 推荐的 `tsconfig.json` 配置
+- 示例项目
+
+安装：
+
+```bash
+npm install loganalyzer-plugin-sdk --save-dev
+npm install typescript --save-dev
+```
+
+### 基本结构
+
+TypeScript 插件与 JavaScript 插件遵循相同的工厂函数模式，只是使用 TypeScript 语法编写。**关键区别**：
+
+- `main` 字段必须指向编译后的 `.js` 文件（如 `dist/index.js`）
+- 源码放在 `src/` 目录
+- 使用 `tsc` 编译后再打包
+
+#### package.json
+
+```json
+{
+  "name": "my-ts-plugin",
+  "version": "1.0.0",
+  "description": "TypeScript 插件示例",
+  "title": "我的TS插件",
+  "author": "your-name",
+  "license": "MIT",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc"
+  },
+  "devDependencies": {
+    "loganalyzer-plugin-sdk": "^1.0.0",
+    "typescript": "^5.4.0"
+  },
+  "engines": { "loganalyzer": "^1.0.0" },
+  "contributes": {
+    "commands": [
+      {
+        "command": "loganalyzer.myTsCommand",
+        "title": "执行TS命令",
+        "category": "我的分类"
+      }
+    ]
+  }
+}
+```
+
+> **重要：** `main` 字段指向编译后的 `.js` 文件，不是 `.ts` 源码。
+
+#### tsconfig.json
+
+```json
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "commonjs",
+    "lib": ["ES2020"],
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "outDir": "./dist",
+    "rootDir": "./src"
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["node_modules", "dist"]
+}
+```
+
+#### src/index.ts
+
+```ts
+import type { PluginAPI, PluginContext } from 'loganalyzer-plugin-sdk';
+
+module.exports = function(pluginBasePath: string) {
+    const Plugin = require(pluginBasePath);
+
+    class MyTsPlugin extends Plugin {
+        constructor(api: PluginAPI) {
+            super(api);
+        }
+
+        async onActivate(context: PluginContext): Promise<void> {
+            this.api.registerCommand(context, 'loganalyzer.myTsCommand', async () => {
+                const input = await this.api.showInputBox({
+                    title: '请输入内容',
+                    placeholder: '在此输入...'
+                });
+                if (input) {
+                    await this.api.showInfoMessage(`你输入了: ${input}`);
+                }
+            });
+        }
+
+        async onPreOpenFile(filePath: string): Promise<string> {
+            return filePath;
+        }
+
+        async processFile(filePath: string, content: string): Promise<string> {
+            return content;
+        }
+    }
+
+    return MyTsPlugin;
+};
+```
+
+### 开发流程
+
+```
+编写 TypeScript (src/*.ts)
+    ↓
+npm run build (tsc 编译)
+    ↓
+产出 JavaScript (dist/*.js)
+    ↓
+npx log-analyzer-plugin build (打包 .zip)
+    ↓
+在 LogAnalyzer 中安装 .zip 插件
+```
+
+### 类型提示
+
+SDK 提供的类型导入方式：
+
+```ts
+import type { PluginAPI, PluginContext } from 'loganalyzer-plugin-sdk';
+import type { InputBoxOptions, QuickPickOptions } from 'loganalyzer-plugin-sdk';
+import type { PluginBase, PluginMetadata, IDisposable } from 'loganalyzer-plugin-sdk';
+```
+
+> **注意：** 使用 `import type` 确保类型仅用于编译时检查，不会影响运行时产物。
+
+### 使用 CLI 开发 TypeScript 插件
+
+```bash
+# 1. 脚手架创建（选择 TypeScript）
+cd cli && npm install
+npx log-analyzer-plugin init
+# → 在 "Plugin language" 步骤选择 "TypeScript"
+
+# 2. 安装依赖（包括 SDK 和 TypeScript）
+cd my-ts-plugin
+npm install
+
+# 3. 编辑插件逻辑
+# 编辑 src/index.ts
+
+# 4. 编译
+npm run build
+
+# 5. 打包（CLI 会自动先执行 tsc 编译）
+npx log-analyzer-plugin build
+
+# 6. 安装
+npx log-analyzer-plugin install ./my-ts-plugin.zip
+```
 
 ---
 
@@ -433,11 +616,16 @@ cd my-plugin
 npx log-analyzer-plugin build [-o, --output <path>]
 ```
 
-在当前目录下验证插件结构（需有 `package.json` 和 `index.js`），然后打包为 ZIP。
+在当前目录下验证插件结构，然后打包为 ZIP。
+
+- 如果检测到 `tsconfig.json`，会先自动执行 `tsc` 编译
+- 验证 `package.json` 的 `main` 字段必须指向 `.js` 文件
+- 验证 `main` 指向的文件确实存在
 
 打包内容：
-- 文件：`package.json`、`index.js`、`README.md`
-- 目录：`src/`、`dist/`、`lib/`（如果存在）
+- 文件：`package.json`、`README.md`
+- `main` 所在的目录（如 `dist/`）或 `main` 文件本身
+- 可选目录：`assets/`、`lib/`（如果存在）
 
 ### install — 安装
 
@@ -570,7 +758,7 @@ module.exports = function(pluginBasePath) {
         │
         ├── 读取 package.json
         ├── 校验必填字段 (name, version, main, author)
-        ├── require(index.js)(pluginBasePath) → 获取 PluginClass
+        ├── require(main)(pluginBasePath) → 获取 PluginClass
         ├── new PluginClass(api) → 创建实例
         ├── 创建 PluginContext → 设置 metadata
         └── 调用 onActivate(context) → 插件初始化完成

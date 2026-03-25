@@ -29,19 +29,34 @@ async function install({ pluginPath }) {
 
         // Validate plugin structure
         const hasPackageJson = zipEntries.some(entry => entry.entryName === 'package.json');
-        const hasIndexJs = zipEntries.some(entry => entry.entryName === 'index.js');
 
-        if (!hasPackageJson || !hasIndexJs) {
-            throw new Error('Invalid plugin structure: missing package.json or index.js');
+        if (!hasPackageJson) {
+            throw new Error('Invalid plugin structure: missing package.json');
         }
 
         // Read plugin metadata
         const packageJsonEntry = zipEntries.find(entry => entry.entryName === 'package.json');
         const packageJson = JSON.parse(packageJsonEntry.getData().toString('utf8'));
         const pluginName = packageJson.name;
+        const mainFile = packageJson.main || 'index.js';
 
         if (!pluginName) {
             throw new Error('Invalid plugin: package.json must contain a name field');
+        }
+
+        // main must point to a .js file
+        if (mainFile.endsWith('.ts')) {
+            throw new Error(
+                `Plugin "main" points to a .ts file ("${mainFile}"). ` +
+                'Plugins must be pre-compiled to JavaScript before distribution. ' +
+                'Use "npm run build" to compile, then ensure "main" points to the .js output.'
+            );
+        }
+
+        // Verify the main entry file exists in the zip
+        const hasMainFile = zipEntries.some(entry => entry.entryName === mainFile);
+        if (!hasMainFile) {
+            throw new Error(`Invalid plugin structure: missing main entry file: ${mainFile}`);
         }
 
         // Resolve the install directory using the cross-platform home dir

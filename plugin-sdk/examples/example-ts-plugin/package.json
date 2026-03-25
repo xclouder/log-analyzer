@@ -1,0 +1,31 @@
+{
+  "name": "example-ts-plugin",
+  "version": "1.0.0",
+  "description": "TypeScript 插件示例 — 展示如何用 TypeScript 编写 LogAnalyzer 插件",
+  "title": "TypeScript示例插件",
+  "author": "loganalyzer",
+  "license": "MIT",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc"
+  },
+  "devDependencies": {
+    "loganalyzer-plugin-sdk": "^1.0.0",
+    "typescript": "^5.4.0"
+  },
+  "engines": { "loganalyzer": "^1.0.0" },
+  "contributes": {
+    "commands": [
+      {
+        "command": "loganalyzer.tsExample.lineStats",
+        "title": "统计当前文件行信息",
+        "category": "示例"
+      },
+      {
+        "command": "loganalyzer.tsExample.filterByKeyword",
+        "title": "按关键词过滤日志",
+        "category": "示例"
+      }
+    ]
+  }
+}

@@ -80,7 +80,10 @@ module.exports = function(pluginBasePath) {
   return MyPlugin;
 };
 ```
+Plugins can be written in **JavaScript** (`.js`) or **TypeScript** (`.ts`). TypeScript plugins use the `loganalyzer-plugin-sdk` package for type declarations and must be pre-compiled to JavaScript before distribution. The runtime PluginManager only loads `.js` files.
+
 Built-in plugins live in `src/plugins/`. User plugins are installed to `<userData>/plugins/`.
+The `plugin-sdk/` directory contains the SDK package with type declarations, recommended tsconfig, and example TypeScript plugin.
 
 ### Large File Handling
 Files > `sizeMB` (default 100MB) are read via binary search on byte offsets. Key fix: chunk boundaries are aligned to raw byte newlines BEFORE decoding, preventing multi-byte character corruption. Encoding is auto-detected via `chardet`.

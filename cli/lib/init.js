@@ -45,6 +45,16 @@ const questions = [
         default: '1.0.0'
     },
     {
+        type: 'list',
+        name: 'language',
+        message: 'Plugin language:',
+        choices: [
+            { name: 'JavaScript', value: 'js' },
+            { name: 'TypeScript', value: 'ts' }
+        ],
+        default: 'js'
+    },
+    {
         type: 'checkbox',
         name: 'features',
         message: 'Select plugin features:',
@@ -74,33 +84,9 @@ const questions = [
     }
 ];
 
-async function createPluginStructure(answers) {
-    const pluginDir = path.join(process.cwd(), answers.name);
+// ── JavaScript plugin template ────────────────────────────────────────────
 
-    // Create plugin directory and assets directory
-    await fs.ensureDir(pluginDir);
-    await fs.ensureDir(path.join(pluginDir, 'assets'));
-
-    // Create package.json
-    const packageJson = {
-        name: answers.name,
-        version: answers.version,
-        description: answers.description,
-        title: answers.title || answers.name,
-        author: answers.author,
-        license: "MIT",
-        main: 'index.js',
-        engines: {
-            loganalyzer: "^1.0.0"
-        },
-        contributes: {
-            fileTypes: answers.fileTypes || []
-        }
-    };
-
-    await fs.writeJson(path.join(pluginDir, 'package.json'), packageJson, { spaces: 2 });
-
-    // Create index.js with selected features
+function generateJsPlugin(answers) {
     let pluginCode = `const path = require('path');
 
 module.exports = function(pluginBasePath) {
@@ -175,12 +161,178 @@ module.exports = function(pluginBasePath) {
 };
 `;
 
-    await fs.writeFile(path.join(pluginDir, 'index.js'), pluginCode);
+    return pluginCode;
+}
+
+// ── TypeScript plugin template ────────────────────────────────────────────
+
+function generateTsPlugin(answers) {
+    let pluginCode = `import type { PluginAPI, PluginContext } from 'loganalyzer-plugin-sdk';
+
+module.exports = function(pluginBasePath: string) {
+    const Plugin = require(pluginBasePath);
+
+    class ${answers.className || answers.name}Plugin extends Plugin {
+        constructor(api: PluginAPI) {
+            super(api);
+        }
+
+        async onActivate(context: PluginContext): Promise<void> {
+            // Register commands and set up state here
+        }
+
+        async onDeactivate(): Promise<void> {
+            // Clean up resources here
+        }
+`;
+
+    if (answers.features.includes('fileContent')) {
+        pluginCode += `
+        /**
+         * Process file content before display.
+         * Return the transformed content string.
+         */
+        async processFile(filePath: string, content: string): Promise<string> {
+            // Add your content processing logic here
+            return content;
+        }
+
+        /**
+         * Called before opening a file.
+         * Return the original path to proceed normally, or '' to cancel.
+         */
+        async onPreOpenFile(filePath: string): Promise<string> {
+            // Add your pre-open file logic here
+            return filePath;
+        }
+`;
+    }
+
+    if (answers.features.includes('filePath')) {
+        pluginCode += `
+        /**
+         * Process file path.
+         * Return the transformed file path.
+         */
+        async processPath(filePath: string): Promise<string> {
+            // Add your path processing logic here
+            return filePath;
+        }
+`;
+    }
+
+    if (answers.features.includes('window')) {
+        pluginCode += `
+        /**
+         * Create custom window.
+         */
+        async createCustomWindow(): Promise<void> {
+            const win = this.api.createWindow('${answers.name}', {
+                width: 800,
+                height: 600,
+                title: '${answers.title || answers.name}'
+            });
+
+            // Add your window initialization logic here
+        }
+`;
+    }
+
+    pluginCode += `    }
+
+    return ${answers.className || answers.name}Plugin;
+};
+`;
+
+    return pluginCode;
+}
+
+// ── TypeScript config template ────────────────────────────────────────────
+
+function generateTsConfig() {
+    return JSON.stringify({
+        compilerOptions: {
+            target: "ES2020",
+            module: "commonjs",
+            lib: ["ES2020"],
+            strict: true,
+            esModuleInterop: true,
+            skipLibCheck: true,
+            forceConsistentCasingInFileNames: true,
+            resolveJsonModule: true,
+            declaration: false,
+            sourceMap: false,
+            outDir: "./dist",
+            rootDir: "./src"
+        },
+        include: ["src/**/*.ts"],
+        exclude: ["node_modules", "dist"]
+    }, null, 2);
+}
+
+// ── Create plugin structure ───────────────────────────────────────────────
+
+async function createPluginStructure(answers) {
+    const pluginDir = path.join(process.cwd(), answers.name);
+    const isTypeScript = answers.language === 'ts';
+
+    // Create plugin directory and assets directory
+    await fs.ensureDir(pluginDir);
+    await fs.ensureDir(path.join(pluginDir, 'assets'));
+
+    // For TS plugins: main points to compiled JS in dist/
+    // For JS plugins: main points to root index.js
+    const mainField = isTypeScript ? 'dist/index.js' : 'index.js';
+
+    // Create package.json
+    const packageJson = {
+        name: answers.name,
+        version: answers.version,
+        description: answers.description,
+        title: answers.title || answers.name,
+        author: answers.author,
+        license: "MIT",
+        main: mainField,
+        engines: {
+            loganalyzer: "^1.0.0"
+        },
+        contributes: {
+            fileTypes: answers.fileTypes || []
+        }
+    };
+
+    if (isTypeScript) {
+        packageJson.scripts = {
+            build: "tsc"
+        };
+        packageJson.devDependencies = {
+            "loganalyzer-plugin-sdk": "^1.0.0",
+            "typescript": "^5.4.0"
+        };
+    }
+
+    await fs.writeJson(path.join(pluginDir, 'package.json'), packageJson, { spaces: 2 });
+
+    if (isTypeScript) {
+        // TypeScript plugin: src/index.ts + tsconfig.json
+        await fs.ensureDir(path.join(pluginDir, 'src'));
+        const pluginCode = generateTsPlugin(answers);
+        await fs.writeFile(path.join(pluginDir, 'src', 'index.ts'), pluginCode);
+        await fs.writeFile(path.join(pluginDir, 'tsconfig.json'), generateTsConfig());
+    } else {
+        // JavaScript plugin: index.js at root
+        const pluginCode = generateJsPlugin(answers);
+        await fs.writeFile(path.join(pluginDir, 'index.js'), pluginCode);
+    }
 
     // Create README.md
     const readme = `# ${answers.name}
 
 ${answers.description}
+
+## Language
+
+${isTypeScript ? 'TypeScript' : 'JavaScript'}
 
 ## Features
 
@@ -196,7 +348,20 @@ ${(answers.fileTypes || []).map(type => `- ${type}`).join('\n')}
 2. Open Log Analyzer
 3. Go to Plugin Manager
 4. Install the plugin
+${isTypeScript ? `
+## Development (TypeScript)
 
+\`\`\`bash
+# Install dependencies
+npm install
+
+# Compile TypeScript → JavaScript
+npm run build
+
+# Package for distribution
+npx log-analyzer-plugin build
+\`\`\`
+` : ''}
 ## Usage
 
 [Add usage instructions here]
@@ -221,11 +386,19 @@ async function init() {
 
         await createPluginStructure(answers);
 
+        const isTypeScript = answers.language === 'ts';
         console.log(chalk.green('\nPlugin created successfully! \u2705'));
         console.log(chalk.yellow('\nNext steps:'));
         console.log(`1. cd ${answers.name}`);
-        console.log('2. Implement your plugin logic in index.js');
-        console.log('3. Run log-analyzer-plugin build to create the plugin package');
+        if (isTypeScript) {
+            console.log('2. npm install');
+            console.log('3. Edit your plugin logic in src/index.ts');
+            console.log('4. npm run build (compile TypeScript)');
+            console.log('5. npx log-analyzer-plugin build (package for distribution)');
+        } else {
+            console.log('2. Implement your plugin logic in index.js');
+            console.log('3. Run log-analyzer-plugin build to create the plugin package');
+        }
 
     } catch (err) {
         console.error(chalk.red('Error creating plugin:'), err);

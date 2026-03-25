@@ -1,0 +1,33 @@
+{
+  "name": "loganalyzer-plugin-sdk",
+  "version": "1.0.0",
+  "description": "SDK for developing LogAnalyzer plugins in TypeScript or JavaScript",
+  "main": "index.js",
+  "types": "types/index.d.ts",
+  "files": [
+    "types/",
+    "index.js",
+    "index.d.ts",
+    "tsconfig.plugin.json",
+    "README.md"
+  ],
+  "scripts": {
+    "test": "echo \"No tests yet\""
+  },
+  "keywords": [
+    "loganalyzer",
+    "plugin",
+    "sdk",
+    "typescript"
+  ],
+  "author": "loganalyzer",
+  "license": "MIT",
+  "peerDependencies": {
+    "typescript": ">=4.7.0"
+  },
+  "peerDependenciesMeta": {
+    "typescript": {
+      "optional": true
+    }
+  }
+}

@@ -5,6 +5,11 @@
  * exports a factory function:
  *   module.exports = function(pluginBasePath) { return PluginClass; }
  *
+ * TypeScript plugins must be pre-compiled to JavaScript before distribution.
+ * The `loganalyzer-plugin-sdk` package provides type declarations for
+ * TypeScript plugin development, and the CLI `build` command handles
+ * compilation and packaging.
+ *
  * Two plugin directories are scanned:
  *   - Builtin: <resourcesPath>/plugins  (production)  or  ./src/plugins  (dev)
  *   - User:    <userData>/plugins
