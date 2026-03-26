@@ -2,7 +2,7 @@
 
 ## 概述
 
-LogAnalyzer 支持通过插件扩展功能。插件可以使用 **JavaScript** 或 **TypeScript** 编写。TypeScript 插件通过 `loganalyzer-plugin-sdk` 获得完整的类型提示，开发者自行编译为 JavaScript 后打包分发。
+LogAnalyzer 支持通过插件扩展功能。插件使用 **TypeScript** 编写，继承 `loganalyzer-plugin-sdk` 提供的 `PluginBase` 基类，编译为 JavaScript 后打包分发。
 
 插件可以：
 
@@ -25,20 +25,11 @@ npm install
 npx log-analyzer-plugin init
 ```
 
-交互式提示会引导你创建插件目录结构。在语言选择步骤中，可以选择 **JavaScript** 或 **TypeScript**。
+交互式提示会引导你创建插件目录结构。
 
-### 方式二：手动创建（JavaScript）
+### 方式二：手动创建
 
 创建如下目录结构：
-
-```
-my-plugin/
-├── package.json   # 必须 — 元数据 + 命令声明
-├── index.js       # 必须 — 工厂函数入口
-└── README.md      # 可选
-```
-
-### 方式三：手动创建（TypeScript）
 
 ```
 my-plugin/
@@ -61,7 +52,7 @@ my-plugin/
 {
   "name": "my-plugin",
   "version": "1.0.0",
-  "main": "index.js",
+  "main": "dist/index.js",
   "author": "your-name"
 }
 ```
@@ -78,7 +69,16 @@ my-plugin/
   "title": "我的插件",
   "author": "your-name",
   "license": "MIT",
-  "main": "index.js",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc"
+  },
+  "dependencies": {
+    "loganalyzer-plugin-sdk": "^1.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0"
+  },
   "engines": {
     "loganalyzer": "^1.0.0"
   },
@@ -101,7 +101,7 @@ my-plugin/
 |------|------|------|
 | `name` | ✅ | 唯一标识符，kebab-case 格式 |
 | `version` | ✅ | 语义化版本号 |
-| `main` | ✅ | 入口文件路径（`index.js` 或 `index.ts`） |
+| `main` | ✅ | 入口文件路径（必须是 `.js` 文件） |
 | `author` | ✅ | 作者名称 |
 | `title` | | 显示名称，用作命令分类的回退值 |
 | `description` | | 在插件管理器中展示的描述文本 |
@@ -134,146 +134,58 @@ my-plugin/
 
 ---
 
-## 工厂函数模式
-
-插件的 `index.js` 必须导出一个**工厂函数**，该函数接收 `pluginBasePath` 参数并返回插件类：
-
-```js
-module.exports = function(pluginBasePath) {
-    const Plugin = require(pluginBasePath);  // 获取 PluginBase 类
-
-    class MyPlugin extends Plugin {
-        constructor(api) {
-            super(api);  // 必须调用 super，PluginBase 会保存 this.api
-        }
-
-        async onActivate(context) {
-            // 插件初始化逻辑
-        }
-    }
-
-    return MyPlugin;  // 返回类本身，不是实例
-};
-```
-
-**为什么用这种模式：** 插件是独立的 `.js` 文件，无法直接 `require` 应用内部模块。宿主程序在运行时将 `plugin-base.js` 的绝对路径传入，让插件可以继承基类。
-
----
-
-## TypeScript 插件开发
+## 插件编写
 
 ### Plugin SDK
 
-`loganalyzer-plugin-sdk` 是专门为 TypeScript 插件开发提供的 SDK 包，包含：
+`loganalyzer-plugin-sdk` 是插件开发的核心包，提供：
 
-- 完整的 TypeScript 类型声明（`PluginAPI`、`PluginContext`、`PluginBase` 等）
-- 推荐的 `tsconfig.json` 配置
-- 示例项目
+- **`PluginBase` 基类** — 所有插件必须继承此类
+- **完整的 TypeScript 类型声明** — `PluginAPI`、`PluginContext` 等
+- **推荐的 `tsconfig.json` 配置**
+- **示例项目**
 
 安装：
 
 ```bash
-npm install loganalyzer-plugin-sdk --save-dev
+npm install loganalyzer-plugin-sdk
 npm install typescript --save-dev
 ```
 
-### 基本结构
+### 基本写法
 
-TypeScript 插件与 JavaScript 插件遵循相同的工厂函数模式，只是使用 TypeScript 语法编写。**关键区别**：
+```ts
+import { PluginBase } from 'loganalyzer-plugin-sdk';
+import type { PluginContext } from 'loganalyzer-plugin-sdk';
 
-- `main` 字段必须指向编译后的 `.js` 文件（如 `dist/index.js`）
-- 源码放在 `src/` 目录
-- 使用 `tsc` 编译后再打包
-
-#### package.json
-
-```json
-{
-  "name": "my-ts-plugin",
-  "version": "1.0.0",
-  "description": "TypeScript 插件示例",
-  "title": "我的TS插件",
-  "author": "your-name",
-  "license": "MIT",
-  "main": "dist/index.js",
-  "scripts": {
-    "build": "tsc"
-  },
-  "devDependencies": {
-    "loganalyzer-plugin-sdk": "^1.0.0",
-    "typescript": "^5.4.0"
-  },
-  "engines": { "loganalyzer": "^1.0.0" },
-  "contributes": {
-    "commands": [
-      {
-        "command": "loganalyzer.myTsCommand",
-        "title": "执行TS命令",
-        "category": "我的分类"
+export default class MyPlugin extends PluginBase {
+  async onActivate(context: PluginContext): Promise<void> {
+    this.api.registerCommand(context, 'loganalyzer.myCommand', async () => {
+      const input = await this.api.showInputBox({
+        title: '请输入内容',
+        placeholder: '在此输入...'
+      });
+      if (input) {
+        await this.api.showInfoMessage(`你输入了: ${input}`);
       }
-    ]
+    });
+  }
+
+  async onPreOpenFile(filePath: string): Promise<string> {
+    return filePath;
+  }
+
+  async processFile(filePath: string, content: string): Promise<string> {
+    return content;
   }
 }
 ```
 
-> **重要：** `main` 字段指向编译后的 `.js` 文件，不是 `.ts` 源码。
+**关键点：**
 
-#### tsconfig.json
-
-```json
-{
-  "compilerOptions": {
-    "target": "ES2020",
-    "module": "commonjs",
-    "lib": ["ES2020"],
-    "strict": true,
-    "esModuleInterop": true,
-    "skipLibCheck": true,
-    "outDir": "./dist",
-    "rootDir": "./src"
-  },
-  "include": ["src/**/*.ts"],
-  "exclude": ["node_modules", "dist"]
-}
-```
-
-#### src/index.ts
-
-```ts
-import type { PluginAPI, PluginContext } from 'loganalyzer-plugin-sdk';
-
-module.exports = function(pluginBasePath: string) {
-    const Plugin = require(pluginBasePath);
-
-    class MyTsPlugin extends Plugin {
-        constructor(api: PluginAPI) {
-            super(api);
-        }
-
-        async onActivate(context: PluginContext): Promise<void> {
-            this.api.registerCommand(context, 'loganalyzer.myTsCommand', async () => {
-                const input = await this.api.showInputBox({
-                    title: '请输入内容',
-                    placeholder: '在此输入...'
-                });
-                if (input) {
-                    await this.api.showInfoMessage(`你输入了: ${input}`);
-                }
-            });
-        }
-
-        async onPreOpenFile(filePath: string): Promise<string> {
-            return filePath;
-        }
-
-        async processFile(filePath: string, content: string): Promise<string> {
-            return content;
-        }
-    }
-
-    return MyTsPlugin;
-};
-```
+- 直接 `import { PluginBase }` — SDK 同时提供运行时基类和类型声明
+- `export default class` — 宿主应用通过 default export 加载插件类
+- `this.api` — 由基类构造函数初始化，无需手动赋值
 
 ### 开发流程
 
@@ -294,23 +206,23 @@ npx log-analyzer-plugin build (打包 .zip)
 SDK 提供的类型导入方式：
 
 ```ts
+import { PluginBase } from 'loganalyzer-plugin-sdk';
 import type { PluginAPI, PluginContext } from 'loganalyzer-plugin-sdk';
 import type { InputBoxOptions, QuickPickOptions } from 'loganalyzer-plugin-sdk';
-import type { PluginBase, PluginMetadata, IDisposable } from 'loganalyzer-plugin-sdk';
+import type { PluginMetadata, IDisposable } from 'loganalyzer-plugin-sdk';
 ```
 
-> **注意：** 使用 `import type` 确保类型仅用于编译时检查，不会影响运行时产物。
+> **注意：** `PluginBase` 是值导入（运行时需要），其余用 `import type` 即可。
 
-### 使用 CLI 开发 TypeScript 插件
+### 使用 CLI 开发
 
 ```bash
-# 1. 脚手架创建（选择 TypeScript）
+# 1. 脚手架创建
 cd cli && npm install
 npx log-analyzer-plugin init
-# → 在 "Plugin language" 步骤选择 "TypeScript"
 
-# 2. 安装依赖（包括 SDK 和 TypeScript）
-cd my-ts-plugin
+# 2. 安装依赖
+cd my-plugin
 npm install
 
 # 3. 编辑插件逻辑
@@ -323,7 +235,7 @@ npm run build
 npx log-analyzer-plugin build
 
 # 6. 安装
-npx log-analyzer-plugin install ./my-ts-plugin.zip
+npx log-analyzer-plugin install ./my-plugin.zip
 ```
 
 ---
@@ -343,8 +255,8 @@ npx log-analyzer-plugin install ./my-ts-plugin.zip
 
 多个插件的 `onPreOpenFile` 按加载顺序**串行执行**，前一个的返回值作为后一个的输入。
 
-```js
-async onPreOpenFile(filePath) {
+```ts
+async onPreOpenFile(filePath: string): Promise<string> {
     if (filePath.endsWith('.encrypted')) {
         const decryptedPath = await this.decrypt(filePath);
         return decryptedPath;  // 后续读取解密后的文件
@@ -355,8 +267,8 @@ async onPreOpenFile(filePath) {
 
 返回空字符串 `''` 是特殊约定，表示插件已经自行处理了文件打开（例如解压 ZIP 后让用户选择子文件），宿主程序不再读取原文件：
 
-```js
-async onPreOpenFile(filePath) {
+```ts
+async onPreOpenFile(filePath: string): Promise<string> {
     if (this.isZipFile(filePath)) {
         // 解压并让用户选择文件...
         await this.api.pluginOpenFile(selectedFile);
@@ -378,7 +290,7 @@ async onPreOpenFile(filePath) {
 
 弹出文本输入框，返回用户输入的字符串或 `undefined`（取消）。
 
-```js
+```ts
 const url = await this.api.showInputBox({
     title: "请输入URL",
     placeholder: "https://example.com/log.zip",
@@ -400,7 +312,7 @@ if (!url) return;  // 用户取消
 
 弹出列表选择框，返回用户选择的项或 `undefined`（取消）。
 
-```js
+```ts
 const files = ['error.log', 'access.log', 'debug.log'];
 const selected = await this.api.showQuickPick(files, {
     title: "选择要打开的文件"
@@ -419,7 +331,7 @@ if (!selected) return;
 
 弹出错误提示框。
 
-```js
+```ts
 await this.api.showErrorMessage("下载失败", {
     modal: true,
     detail: error.message
@@ -428,9 +340,9 @@ await this.api.showErrorMessage("下载失败", {
 
 #### showInfoMessage(message, options?)
 
-弹出信息提示框，原名 `showInformationMessage`。
+弹出信息提示框。
 
-```js
+```ts
 await this.api.showInfoMessage("操作完成");
 ```
 
@@ -447,7 +359,7 @@ await this.api.showInfoMessage("操作完成");
 
 在编辑器中打开指定文件（等同于用户手动打开文件）。
 
-```js
+```ts
 await this.api.pluginOpenFile("C:/logs/extracted/game.log");
 ```
 
@@ -455,7 +367,7 @@ await this.api.pluginOpenFile("C:/logs/extracted/game.log");
 
 下载远程文件到应用缓存目录。支持 HTTP/HTTPS，自动跟随 301/302 重定向。下载进度每 5% 更新一次（渲染进程会显示进度条）。
 
-```js
+```ts
 const localPath = await this.api.downloadFile(
     "https://example.com/log.zip",
     "my-plugin/download.zip"    // 相对于缓存目录的路径
@@ -467,7 +379,7 @@ const localPath = await this.api.downloadFile(
 
 获取应用缓存目录路径。
 
-```js
+```ts
 const cacheDir = this.api.getAppCacheDir();
 // → "<userData>/cache"
 ```
@@ -476,7 +388,7 @@ const cacheDir = this.api.getAppCacheDir();
 
 获取当前打开的文件路径，无文件时返回 `null`。
 
-```js
+```ts
 const filePath = this.api.getCurrentFilePath();
 ```
 
@@ -486,8 +398,8 @@ const filePath = this.api.getCurrentFilePath();
 
 注册一条命令到命令面板。**前提：** 该 `commandId` 必须已在 `package.json` 的 `contributes.commands` 中声明。
 
-```js
-async onActivate(context) {
+```ts
+async onActivate(context: PluginContext): Promise<void> {
     this.api.registerCommand(context, 'loganalyzer.myCommand', () => {
         this.doSomething();
     });
@@ -502,7 +414,7 @@ async onActivate(context) {
 
 创建一个子窗口。
 
-```js
+```ts
 const win = this.api.createWindow('my-plugin', {
     width: 800,
     height: 600,
@@ -514,7 +426,7 @@ const win = this.api.createWindow('my-plugin', {
 
 创建一个内置 Monaco 编辑器的窗口。
 
-```js
+```ts
 const win = this.api.createEditorWindow({
     width: 1000,
     height: 700,
@@ -548,8 +460,8 @@ const win = this.api.createEditorWindow({
 
 如果需要手动注册清理逻辑：
 
-```js
-async onActivate(context) {
+```ts
+async onActivate(context: PluginContext): Promise<void> {
     const timer = setInterval(() => this.poll(), 60000);
 
     // 手动添加 Disposable
@@ -669,25 +581,51 @@ npx log-analyzer-plugin install <plugin.zip>
 ### index.js（简化版）
 
 ```js
-module.exports = function(pluginBasePath) {
-    const Plugin = require(pluginBasePath);
+const { PluginBase } = require('loganalyzer-plugin-sdk');
 
-    class OpenlogFromUrlPlugin extends Plugin {
-        constructor(api) {
-            super(api);
+class OpenlogFromUrlPlugin extends PluginBase {
+    // ── 钩子：拦截压缩文件的打开 ──────────────────
+    async onPreOpenFile(filePath) {
+        if (!this.isCompressedFile(filePath)) {
+            return filePath;  // 非压缩文件，正常通过
         }
 
-        // ── 钩子：拦截压缩文件的打开 ──────────────────
-        async onPreOpenFile(filePath) {
-            if (!this.isCompressedFile(filePath)) {
-                return filePath;  // 非压缩文件，正常通过
-            }
+        // 解压
+        const cacheDir = /* 解压目标路径 */;
+        await this.extractZip(filePath, cacheDir);
 
-            // 解压
-            const cacheDir = /* 解压目标路径 */;
-            await this.extractZip(filePath, cacheDir);
+        // 让用户选择文件
+        const files = this.walkDir(cacheDir);
+        const selected = await this.api.showQuickPick(files, {
+            title: "选择要打开的文件"
+        });
 
-            // 让用户选择文件
+        if (selected) {
+            await this.api.pluginOpenFile(path.join(cacheDir, selected));
+            return '';  // 已处理
+        }
+        return filePath;  // 用户取消，回退
+    }
+
+    // ── 命令：从 URL 下载并打开 ──────────────────
+    async onActivate(context) {
+        this.api.registerCommand(context, 'loganalyzer.openLogFromUrl', () => {
+            this.downloadAndOpen();
+        });
+    }
+
+    async downloadAndOpen() {
+        // 1. 获取 URL
+        const url = await this.api.showInputBox({ title: "输入日志URL" });
+        if (!url) return;
+
+        // 2. 下载
+        try {
+            const zipPath = await this.api.downloadFile(url, 'downloads/log.zip');
+
+            // 3. 解压 + 选择文件
+            const cacheDir = this.api.getAppCacheDir();
+            await this.extractZip(zipPath, cacheDir);
             const files = this.walkDir(cacheDir);
             const selected = await this.api.showQuickPick(files, {
                 title: "选择要打开的文件"
@@ -695,55 +633,24 @@ module.exports = function(pluginBasePath) {
 
             if (selected) {
                 await this.api.pluginOpenFile(path.join(cacheDir, selected));
-                return '';  // 已处理
             }
-            return filePath;  // 用户取消，回退
-        }
-
-        // ── 命令：从 URL 下载并打开 ──────────────────
-        async onActivate(context) {
-            this.api.registerCommand(context, 'loganalyzer.openLogFromUrl', () => {
-                this.downloadAndOpen();
+        } catch (error) {
+            await this.api.showErrorMessage("下载失败", {
+                modal: true,
+                detail: error.message
             });
-        }
-
-        async downloadAndOpen() {
-            // 1. 获取 URL
-            const url = await this.api.showInputBox({ title: "输入日志URL" });
-            if (!url) return;
-
-            // 2. 下载
-            try {
-                const zipPath = await this.api.downloadFile(url, 'downloads/log.zip');
-
-                // 3. 解压 + 选择文件
-                const cacheDir = this.api.getAppCacheDir();
-                await this.extractZip(zipPath, cacheDir);
-                const files = this.walkDir(cacheDir);
-                const selected = await this.api.showQuickPick(files, {
-                    title: "选择要打开的文件"
-                });
-
-                if (selected) {
-                    await this.api.pluginOpenFile(path.join(cacheDir, selected));
-                }
-            } catch (error) {
-                await this.api.showErrorMessage("下载失败", {
-                    modal: true,
-                    detail: error.message
-                });
-            }
-        }
-
-        isCompressedFile(filePath) {
-            const ext = path.extname(filePath).toLowerCase();
-            if (filePath.toLowerCase().endsWith('.tar.gz')) return true;
-            return ['.zip', '.tar', '.gz', '.7z'].includes(ext);
         }
     }
 
-    return OpenlogFromUrlPlugin;
-};
+    isCompressedFile(filePath) {
+        const ext = path.extname(filePath).toLowerCase();
+        if (filePath.toLowerCase().endsWith('.tar.gz')) return true;
+        return ['.zip', '.tar', '.gz', '.7z'].includes(ext);
+    }
+}
+
+module.exports = OpenlogFromUrlPlugin;
+module.exports.default = OpenlogFromUrlPlugin;
 ```
 
 ---
@@ -758,7 +665,7 @@ module.exports = function(pluginBasePath) {
         │
         ├── 读取 package.json
         ├── 校验必填字段 (name, version, main, author)
-        ├── require(main)(pluginBasePath) → 获取 PluginClass
+        ├── require(main) → 获取 PluginClass (default export)
         ├── new PluginClass(api) → 创建实例
         ├── 创建 PluginContext → 设置 metadata
         └── 调用 onActivate(context) → 插件初始化完成

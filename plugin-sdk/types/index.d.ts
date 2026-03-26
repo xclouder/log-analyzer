@@ -2,17 +2,15 @@
  * LogAnalyzer Plugin SDK — Type Declarations
  *
  * 使用方式：
- *   npm install loganalyzer-plugin-sdk --save-dev
+ *   npm install loganalyzer-plugin-sdk
  *
- * 在 TypeScript 插件中导入类型：
- *   import type { PluginAPI, PluginContext, PluginBase } from 'loganalyzer-plugin-sdk';
+ * 在 TypeScript 插件中：
+ *   import { PluginBase } from 'loganalyzer-plugin-sdk';
+ *   import type { PluginAPI, PluginContext } from 'loganalyzer-plugin-sdk';
  *
- * 插件的入口文件仍然需要使用工厂函数模式：
- *   module.exports = function(pluginBasePath: string) {
- *     const Plugin = require(pluginBasePath);
- *     class MyPlugin extends Plugin { ... }
- *     return MyPlugin;
- *   };
+ *   export default class MyPlugin extends PluginBase {
+ *     async onActivate(context: PluginContext): Promise<void> { ... }
+ *   }
  */
 
 // ── UI 对话框选项 ──────────────────────────────────────────────────────────
@@ -158,25 +156,16 @@ export interface PluginAPI {
  *
  * TypeScript 插件示例：
  * ```ts
+ * import { PluginBase } from 'loganalyzer-plugin-sdk';
  * import type { PluginAPI, PluginContext } from 'loganalyzer-plugin-sdk';
  *
- * module.exports = function(pluginBasePath: string) {
- *   const Plugin = require(pluginBasePath);
- *
- *   class MyPlugin extends Plugin {
- *     constructor(api: PluginAPI) {
- *       super(api);
- *     }
- *
- *     async onActivate(context: PluginContext): Promise<void> {
- *       this.api.registerCommand(context, 'myPlugin.hello', () => {
- *         this.api.showInfoMessage('Hello from TypeScript plugin!');
- *       });
- *     }
+ * export default class MyPlugin extends PluginBase {
+ *   async onActivate(context: PluginContext): Promise<void> {
+ *     this.api.registerCommand(context, 'myPlugin.hello', () => {
+ *       this.api.showInfoMessage('Hello from my plugin!');
+ *     });
  *   }
- *
- *   return MyPlugin;
- * };
+ * }
  * ```
  */
 export declare class PluginBase {

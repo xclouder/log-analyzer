@@ -1,11 +1,11 @@
 # loganalyzer-plugin-sdk
 
-LogAnalyzer 插件开发 SDK。提供 TypeScript 类型声明，让你用 TypeScript 编写类型安全的插件。
+LogAnalyzer 插件开发 SDK。提供 `PluginBase` 基类和 TypeScript 类型声明。
 
 ## 安装
 
 ```bash
-npm install loganalyzer-plugin-sdk --save-dev
+npm install loganalyzer-plugin-sdk
 npm install typescript --save-dev
 ```
 
@@ -34,8 +34,10 @@ my-plugin/
   "scripts": {
     "build": "tsc"
   },
+  "dependencies": {
+    "loganalyzer-plugin-sdk": "^1.0.0"
+  },
   "devDependencies": {
-    "loganalyzer-plugin-sdk": "^1.0.0",
     "typescript": "^5.4.0"
   },
   "engines": {
@@ -74,29 +76,20 @@ my-plugin/
 ### 4. src/index.ts
 
 ```ts
-import type { PluginAPI, PluginContext } from 'loganalyzer-plugin-sdk';
+import { PluginBase } from 'loganalyzer-plugin-sdk';
+import type { PluginContext } from 'loganalyzer-plugin-sdk';
 
-module.exports = function(pluginBasePath: string) {
-  const Plugin = require(pluginBasePath);
-
-  class MyPlugin extends Plugin {
-    constructor(api: PluginAPI) {
-      super(api);
-    }
-
-    async onActivate(context: PluginContext): Promise<void> {
-      this.api.registerCommand(context, 'myPlugin.greet', async () => {
-        await this.api.showInfoMessage('Hello from TypeScript plugin!');
-      });
-    }
-
-    async onDeactivate(): Promise<void> {
-      // Clean up resources
-    }
+export default class MyPlugin extends PluginBase {
+  async onActivate(context: PluginContext): Promise<void> {
+    this.api.registerCommand(context, 'myPlugin.greet', async () => {
+      await this.api.showInfoMessage('Hello from TypeScript plugin!');
+    });
   }
 
-  return MyPlugin;
-};
+  async onDeactivate(): Promise<void> {
+    // Clean up resources
+  }
+}
 ```
 
 ### 5. 编译 & 打包
@@ -127,7 +120,7 @@ npx log-analyzer-plugin build (打包 .zip)
 
 | 类型 | 说明 |
 |------|------|
-| `PluginBase` | 插件基类 |
+| `PluginBase` | 插件基类（运行时 + 类型） |
 | `PluginAPI` | 插件 API 接口（通过 `this.api` 访问） |
 | `PluginContext` | 插件上下文（`onActivate` 的参数） |
 | `PluginMetadata` | 插件元数据 |

@@ -72,18 +72,19 @@ Renderer runs with `nodeIntegration: false` and `contextIsolation: true`. Script
 - `sanitize.ts` — HTML escaping for XSS prevention
 
 ### Plugin System
-Plugins use a factory function pattern to extend `PluginBase`:
-```js
-module.exports = function(pluginBasePath) {
-  const Plugin = require(pluginBasePath);  // loads plugin-base.js
-  class MyPlugin extends Plugin { ... }
-  return MyPlugin;
-};
+Plugins extend `PluginBase` from `loganalyzer-plugin-sdk` and use `export default`:
+```ts
+import { PluginBase } from 'loganalyzer-plugin-sdk';
+import type { PluginContext } from 'loganalyzer-plugin-sdk';
+
+export default class MyPlugin extends PluginBase {
+  async onActivate(context: PluginContext): Promise<void> { ... }
+}
 ```
-Plugins can be written in **JavaScript** (`.js`) or **TypeScript** (`.ts`). TypeScript plugins use the `loganalyzer-plugin-sdk` package for type declarations and must be pre-compiled to JavaScript before distribution. The runtime PluginManager only loads `.js` files.
+Plugins are written in **TypeScript**, compiled to JavaScript, and packaged as ZIP files. The SDK (`plugin-sdk/`) provides both the runtime `PluginBase` class and TypeScript type declarations. The PluginManager loads the compiled `.js` and instantiates the default export.
 
 Built-in plugins live in `src/plugins/`. User plugins are installed to `<userData>/plugins/`.
-The `plugin-sdk/` directory contains the SDK package with type declarations, recommended tsconfig, and example TypeScript plugin.
+The `plugin-sdk/` directory is also registered as a local dependency (`"loganalyzer-plugin-sdk": "file:./plugin-sdk"`) in the host's `package.json`.
 
 ### Large File Handling
 Files > `sizeMB` (default 100MB) are read via binary search on byte offsets. Key fix: chunk boundaries are aligned to raw byte newlines BEFORE decoding, preventing multi-byte character corruption. Encoding is auto-detected via `chardet`.

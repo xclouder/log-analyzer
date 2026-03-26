@@ -1,7 +1,7 @@
 {
   "name": "loganalyzer-plugin-sdk",
   "version": "1.0.0",
-  "description": "SDK for developing LogAnalyzer plugins in TypeScript or JavaScript",
+  "description": "SDK for developing LogAnalyzer plugins — provides PluginBase class and type declarations",
   "main": "index.js",
   "types": "types/index.d.ts",
   "files": [

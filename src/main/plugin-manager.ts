@@ -1,14 +1,13 @@
 /**
  * plugin-manager.ts — Loads, validates, and manages the lifecycle of plugins.
  *
- * Plugins are ZIP files containing a package.json and a main JS file that
- * exports a factory function:
- *   module.exports = function(pluginBasePath) { return PluginClass; }
+ * Plugins extend `PluginBase` from `loganalyzer-plugin-sdk` and export their
+ * class as the default export:
  *
- * TypeScript plugins must be pre-compiled to JavaScript before distribution.
- * The `loganalyzer-plugin-sdk` package provides type declarations for
- * TypeScript plugin development, and the CLI `build` command handles
- * compilation and packaging.
+ *   import { PluginBase } from 'loganalyzer-plugin-sdk';
+ *   export default class MyPlugin extends PluginBase { ... }
+ *
+ * The `main` field in package.json must point to the compiled `.js` file.
  *
  * Two plugin directories are scanned:
  *   - Builtin: <resourcesPath>/plugins  (production)  or  ./src/plugins  (dev)
@@ -18,6 +17,7 @@
 import * as fs from 'fs';
 import * as fsPromises from 'fs/promises';
 import * as path from 'path';
+import Module from 'module';
 import { app, BrowserWindow } from 'electron';
 import AdmZip from 'adm-zip';
 import { getLogger } from './log-util';
@@ -67,10 +67,58 @@ export class PluginManager {
     this._userPluginsDir = path.join(app.getPath('userData'), 'plugins');
     await fsPromises.mkdir(this._userPluginsDir, { recursive: true });
 
+    // Register the SDK so that plugins anywhere can `require('loganalyzer-plugin-sdk')`.
+    // In dev mode the SDK lives at <projectRoot>/plugin-sdk; in production it
+    // is bundled into node_modules via `"file:./plugin-sdk"` in package.json.
+    // We resolve the SDK entry point once and inject it into Node's module
+    // resolution so it works regardless of where the plugin directory is.
+    this.registerPluginSDK(projectRoot);
+
     logger.info('Plugin directories:', {
       builtin: this._builtinPluginsDir,
       user: this._userPluginsDir,
     });
+  }
+
+  /**
+   * Make `require('loganalyzer-plugin-sdk')` resolvable from any plugin
+   * directory by hooking into Node's module resolution.
+   *
+   * We try two locations:
+   *   1. <projectRoot>/node_modules/loganalyzer-plugin-sdk  (npm-installed)
+   *   2. <projectRoot>/plugin-sdk                           (direct source)
+   */
+  private registerPluginSDK(projectRoot: string): void {
+    const candidates = [
+      path.join(projectRoot, 'node_modules', 'loganalyzer-plugin-sdk'),
+      path.join(projectRoot, 'plugin-sdk'),
+    ];
+
+    const sdkDir = candidates.find((p) => {
+      try { return fs.statSync(path.join(p, 'index.js')).isFile(); } catch { return false; }
+    });
+
+    if (!sdkDir) {
+      logger.warn('loganalyzer-plugin-sdk not found — plugins that require it will fail.');
+      return;
+    }
+
+    const sdkIndexPath = path.join(sdkDir, 'index.js');
+    logger.info(`Registering plugin SDK: ${sdkDir}`);
+
+    // Monkey-patch Module._resolveFilename to intercept 'loganalyzer-plugin-sdk'
+    const originalResolve = (Module as any)._resolveFilename;
+    (Module as any)._resolveFilename = function (
+      request: string,
+      parent: any,
+      isMain: boolean,
+      options: any,
+    ) {
+      if (request === 'loganalyzer-plugin-sdk') {
+        return sdkIndexPath;
+      }
+      return originalResolve.call(this, request, parent, isMain, options);
+    };
   }
 
   // ── Load all plugins ──────────────────────────────────────────────────────
@@ -120,13 +168,14 @@ export class PluginManager {
       throw new Error(`Plugin main file not found: ${mainFile}`);
     }
 
-    // The plugin exports a factory: (pluginBasePath) => PluginClass
-    // We pass the path to the compiled plugin-base.js so the plugin can extend it.
-    const pluginBasePath = path.resolve(__dirname, 'plugin-base.js');
+    // The plugin main file should export the plugin class as default export.
+    // Supports both ES module-style `export default class` (compiled to
+    // `exports.default = ...`) and direct `module.exports = class`.
     // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const PluginClass = require(mainFile)(pluginBasePath);
-    if (!PluginClass) {
-      throw new Error(`Plugin factory returned falsy for: ${mainFile}`);
+    const pluginModule = require(mainFile);
+    const PluginClass = pluginModule.default ?? pluginModule;
+    if (typeof PluginClass !== 'function') {
+      throw new Error(`Plugin main file must export a class (default export): ${mainFile}`);
     }
 
     const instance = new PluginClass(this.api);

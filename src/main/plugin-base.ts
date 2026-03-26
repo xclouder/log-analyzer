@@ -4,19 +4,19 @@ import type { PluginAPI } from './plugin-api';
 /**
  * Base class for all LogAnalyzer plugins.
  *
- * Plugins are loaded from a ZIP file via the Plugin Manager. Each plugin's
- * main file must export a factory function:
+ * The `loganalyzer-plugin-sdk` package exports a compatible PluginBase class
+ * for plugin developers. This version is used internally by the host app.
  *
- * ```js
- * module.exports = function(pluginBasePath) {
- *   const Plugin = require(pluginBasePath);
- *   class MyPlugin extends Plugin { ... }
- *   return MyPlugin;
- * };
+ * Plugin developers extend from the SDK:
+ *
+ * ```ts
+ * import { PluginBase } from 'loganalyzer-plugin-sdk';
+ * import type { PluginContext } from 'loganalyzer-plugin-sdk';
+ *
+ * export default class MyPlugin extends PluginBase {
+ *   async onActivate(context: PluginContext): Promise<void> { ... }
+ * }
  * ```
- *
- * This factory pattern lets plugins extend the base class without knowing
- * the absolute installation path of `plugin-base.js` at write-time.
  */
 class PluginBase {
   protected api: PluginAPI;
@@ -56,11 +56,4 @@ class PluginBase {
   }
 }
 
-// Both named export (for TypeScript imports) and module.exports (for plugin require())
 export { PluginBase };
-
-// Plugins do `const Plugin = require(pluginBasePath)` and expect the class directly.
-// Override module.exports so require() returns the class, not { PluginBase: ... }.
-module.exports = PluginBase;
-// Preserve named export for TypeScript consumers
-module.exports.PluginBase = PluginBase;
