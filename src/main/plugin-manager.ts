@@ -26,6 +26,7 @@ import { PluginAPIImpl } from './plugin-api-impl';
 import type { PluginBase } from './plugin-base';
 import type { PluginMetadata, PluginInfo } from '../shared/types';
 import type { CommandManager } from './command-manager';
+import type { ConfigurationManager } from './configuration-manager';
 
 const logger = getLogger('PluginManager');
 
@@ -38,7 +39,9 @@ interface LoadedPlugin {
 export class PluginManager {
   private readonly mainWindow: BrowserWindow;
   private readonly commandManager: CommandManager;
+  private readonly configurationManager: ConfigurationManager;
   private readonly plugins = new Map<string, LoadedPlugin>();
+  private readonly pluginMetadata = new Map<string, PluginMetadata>();
   private readonly api: PluginAPIImpl;
 
   private _builtinPluginsDir = '';
@@ -49,10 +52,16 @@ export class PluginManager {
   /** Directory containing user-installed plugins. */
   get userPluginsDir(): string { return this._userPluginsDir; }
 
-  constructor(mainWindow: BrowserWindow, commandManager: CommandManager, getCurrentFilePath: () => string) {
+  constructor(
+    mainWindow: BrowserWindow,
+    commandManager: CommandManager,
+    getCurrentFilePath: () => string,
+    configurationManager: ConfigurationManager,
+  ) {
     this.mainWindow = mainWindow;
     this.commandManager = commandManager;
-    this.api = new PluginAPIImpl(mainWindow, commandManager, getCurrentFilePath);
+    this.configurationManager = configurationManager;
+    this.api = new PluginAPIImpl(mainWindow, commandManager, getCurrentFilePath, configurationManager);
   }
 
   // ── Directory initialisation ──────────────────────────────────────────────
@@ -163,14 +172,30 @@ export class PluginManager {
       throw new Error(`Invalid package.json for plugin: ${packageJson.name ?? pluginDir}`);
     }
 
-    const mainFile = path.join(pluginDir, packageJson.main as string);
-    if (!fs.existsSync(mainFile)) {
-      throw new Error(`Plugin main file not found: ${mainFile}`);
+    const metadata: PluginMetadata = {
+      ...packageJson,
+      isBuiltin,
+      path: pluginDir,
+      defaultEnabled: packageJson.defaultEnabled !== false,
+      enabled: packageJson.defaultEnabled !== false,
+    };
+
+    if (!metadata.enabled) {
+      this.pluginMetadata.set(metadata.name, metadata);
+      logger.info(`Plugin disabled by default, skipping activation: ${metadata.name}`);
+      return;
     }
 
     // The plugin main file should export the plugin class as default export.
     // Supports both ES module-style `export default class` (compiled to
     // `exports.default = ...`) and direct `module.exports = class`.
+    const mainFile = path.join(pluginDir, packageJson.main as string);
+    if (!fs.existsSync(mainFile)) {
+      throw new Error(`Plugin main file not found: ${mainFile}`);
+    }
+
+    this.pluginMetadata.set(metadata.name, metadata);
+
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const pluginModule = require(mainFile);
     const PluginClass = pluginModule.default ?? pluginModule;
@@ -180,10 +205,15 @@ export class PluginManager {
 
     const instance = new PluginClass(this.api);
     const context = new PluginContext(instance, this.api);
-    const metadata: PluginMetadata = { ...packageJson, isBuiltin, path: pluginDir };
     context.metadata = metadata;
 
     this.plugins.set(packageJson.name, { instance, metadata, context });
+
+    // Register configuration schema before onActivate so plugins can read
+    // their configuration values during activation.
+    if (metadata.contributes?.configuration) {
+      this.configurationManager.registerPluginConfiguration(metadata.name, metadata.contributes.configuration);
+    }
 
     logger.info(`Activating plugin: ${metadata.name}`);
     await instance.onActivate(context);
@@ -193,13 +223,15 @@ export class PluginManager {
   // ── Plugin info (safe subset for renderer) ────────────────────────────────
 
   getPlugins(): PluginInfo[] {
-    return Array.from(this.plugins.values()).map(({ metadata }) => ({
+    return Array.from(this.pluginMetadata.values()).map((metadata) => ({
       name: metadata.name,
       version: metadata.version,
       description: metadata.description ?? '',
       author: metadata.author,
       isBuiltin: metadata.isBuiltin,
       path: metadata.path,
+      defaultEnabled: metadata.defaultEnabled,
+      enabled: metadata.enabled,
     }));
   }
 
@@ -243,14 +275,19 @@ export class PluginManager {
   // ── Uninstall ─────────────────────────────────────────────────────────────
 
   async uninstallPlugin(pluginName: string): Promise<{ success: boolean }> {
-    const plugin = this.plugins.get(pluginName);
-    if (!plugin) throw new Error(`Plugin not found: ${pluginName}`);
-    if (plugin.metadata.isBuiltin) throw new Error('Cannot uninstall a builtin plugin');
+    const metadata = this.pluginMetadata.get(pluginName);
+    if (!metadata) throw new Error(`Plugin not found: ${pluginName}`);
+    if (metadata.isBuiltin) throw new Error('Cannot uninstall a builtin plugin');
 
-    plugin.context.disposeAll();
-    await plugin.instance.onDeactivate?.();
-    await fsPromises.rm(plugin.metadata.path, { recursive: true });
-    this.plugins.delete(pluginName);
+    const plugin = this.plugins.get(pluginName);
+    if (plugin) {
+      plugin.context.disposeAll();
+      await plugin.instance.onDeactivate?.();
+      this.configurationManager.unregisterPluginConfiguration(pluginName);
+      this.plugins.delete(pluginName);
+    }
+    await fsPromises.rm(metadata.path, { recursive: true });
+    this.pluginMetadata.delete(pluginName);
 
     logger.info(`Plugin uninstalled: ${pluginName}`);
     return { success: true };

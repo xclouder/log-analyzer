@@ -11,6 +11,17 @@
  *   export default class MyPlugin extends PluginBase {
  *     async onActivate(context) { ... }
  *   }
+ *
+ * Configuration:
+ *   Declare configuration in package.json `contributes.configuration.properties`.
+ *   Read values via:
+ *     const config = this.api.getConfiguration('myPlugin');
+ *     const timeout = config.get('timeout', 30);
+ *
+ *   Listen for changes:
+ *     this.api.onDidChangeConfiguration(e => {
+ *       if (e.affectsConfiguration('myPlugin')) { ... }
+ *     });
  */
 
 class PluginBase {

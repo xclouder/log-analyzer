@@ -18,6 +18,7 @@ import type {
   DownloadProgress,
   LargeFileReadResult,
   FileOpenResult,
+  ConfigurationSection,
 } from './types';
 
 export interface ElectronAPI {
@@ -115,6 +116,18 @@ export interface ElectronAPI {
   // ── Editor window ──────────────────────────────────────────────────────
   onSetContent(cb: (event: unknown, content: string) => void): void;
   sendContentChanged(content: string): void;
+
+  // ── Configuration ─────────────────────────────────────────────────────
+  configuration: {
+    getAll(): Promise<ConfigurationSection[]>;
+    setValue(key: string, value: unknown): Promise<{ success: boolean }>;
+    resetValue(key: string): Promise<{ success: boolean }>;
+  };
+
+  // ── Editor context menu ─────────────────────────────────────────────
+  onEditorRegisterContextMenu(cb: (event: unknown, data: { id: string; label: string }) => void): void;
+  onEditorUnregisterContextMenu(cb: (event: unknown, data: { id: string }) => void): void;
+  sendEditorContextMenuAction(id: string, selectedText: string): void;
 }
 
 declare global {

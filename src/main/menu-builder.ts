@@ -17,6 +17,8 @@ interface MenuDeps {
   getMainWindow: () => BrowserWindow | null;
   getPluginManagerWindow: () => BrowserWindow | null;
   setPluginManagerWindow: (win: BrowserWindow | null) => void;
+  getSettingsWindow: () => BrowserWindow | null;
+  setSettingsWindow: (win: BrowserWindow | null) => void;
   isLoggingEnabled: () => boolean;
   setLoggingEnabled: (enabled: boolean) => void;
 }
@@ -81,6 +83,41 @@ export function buildApplicationMenu(deps: MenuDeps): void {
             if (!result.canceled && result.filePaths.length > 0) {
               mainWindow.webContents.send(IPC_FILTER_LOAD, result.filePaths[0]);
             }
+          },
+        },
+        { type: 'separator' },
+        {
+          label: 'Settings',
+          accelerator: 'CmdOrCtrl+,',
+          click: () => {
+            if (deps.getSettingsWindow()) {
+              deps.getSettingsWindow()!.focus();
+              return;
+            }
+            const mainWindow = deps.getMainWindow();
+            const PROJECT_ROOT = path.join(__dirname, '..', '..', '..');
+            const settingsWin = new BrowserWindow({
+              width: 900,
+              height: 700,
+              parent: mainWindow ?? undefined,
+              webPreferences: {
+                preload: path.join(__dirname, 'preload.js'),
+                contextIsolation: true,
+                nodeIntegration: false,
+                sandbox: false,
+              },
+              title: 'Settings',
+            });
+            settingsWin.setMenu(null);
+
+            const settingsHtml = app.isPackaged
+              ? path.join(app.getAppPath(), 'src', 'renderer', 'settings.html')
+              : path.join(PROJECT_ROOT, 'src', 'renderer', 'settings.html');
+            settingsWin.loadFile(settingsHtml);
+            settingsWin.on('closed', () => {
+              deps.setSettingsWindow(null);
+            });
+            deps.setSettingsWindow(settingsWin);
           },
         },
         { type: 'separator' },

@@ -16,6 +16,8 @@ interface PluginInfo {
   version: string;
   description?: string;
   author: string;
+  defaultEnabled?: boolean;
+  enabled: boolean;
   isBuiltin: boolean;
 }
 
@@ -52,6 +54,8 @@ async function loadPlugins(): Promise<void> {
     const safeVersion = escapeHtml(plugin.version);
     const safeDescription = escapeHtml(plugin.description ?? '无描述');
     const safeAuthor = escapeHtml(plugin.author);
+    const statusText = plugin.enabled ? '已启用' : '默认禁用';
+    const safeStatus = escapeHtml(statusText);
     pluginElement.innerHTML = `
       <div class="plugin-header">
         <span class="plugin-name">${safeName}</span>
@@ -59,6 +63,7 @@ async function loadPlugins(): Promise<void> {
       </div>
       <div class="plugin-description">${safeDescription}</div>
       <div class="plugin-author">作者: ${safeAuthor}</div>
+      <div class="plugin-status">状态: ${safeStatus}</div>
       <div class="plugin-actions">
         <button class="btn btn-danger"
                 data-plugin-name="${safeName}"

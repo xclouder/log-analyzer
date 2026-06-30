@@ -44,6 +44,8 @@ export interface PluginMetadata {
   author: string;
   title?: string;
   description?: string;
+  defaultEnabled?: boolean;
+  enabled: boolean;
   isBuiltin: boolean;
   path: string;
   engines?: { loganalyzer?: string };
@@ -54,6 +56,7 @@ export interface PluginMetadata {
       category?: string;
     }>;
     fileTypes?: string[];
+    configuration?: ConfigurationContribution;
   };
 }
 
@@ -63,6 +66,8 @@ export interface PluginInfo {
   version: string;
   description: string;
   author: string;
+  defaultEnabled?: boolean;
+  enabled: boolean;
   isBuiltin: boolean;
   path: string;
 }
@@ -107,4 +112,51 @@ export interface DownloadProgress {
   totalSize: number;
   progress: number;
   downloadPath: string;
+}
+
+// ── Configuration system (VS Code–style) ─────────────────────────────────────
+
+/** Schema for a single configuration property (declared in plugin package.json). */
+export interface ConfigurationPropertySchema {
+  /** JSON Schema type: 'string' | 'number' | 'boolean' | 'array' | 'object'. */
+  type: 'string' | 'number' | 'boolean' | 'array' | 'object';
+  /** Default value. */
+  default?: unknown;
+  /** Human-readable description shown in the Settings UI. */
+  description?: string;
+  /** For `type: 'string'`, restrict to a set of allowed values (renders as a dropdown). */
+  enum?: unknown[];
+  /** Human-readable labels for `enum` values. */
+  enumDescriptions?: string[];
+  /** For `type: 'array'`, the schema of each item. */
+  items?: { type: string };
+  /** Minimum value (for `type: 'number'`). */
+  minimum?: number;
+  /** Maximum value (for `type: 'number'`). */
+  maximum?: number;
+  /** Display order hint (lower = higher). */
+  order?: number;
+}
+
+/**
+ * A plugin's `contributes.configuration` block.
+ * Mirrors the VS Code extension manifest format.
+ */
+export interface ConfigurationContribution {
+  /** Section title displayed in the Settings UI. */
+  title?: string;
+  /** Map of fully-qualified key → property schema. */
+  properties?: Record<string, ConfigurationPropertySchema>;
+}
+
+/** Data sent to the Settings renderer for display. */
+export interface ConfigurationSection {
+  pluginName: string;
+  title: string;
+  properties: Array<{
+    key: string;
+    schema: ConfigurationPropertySchema;
+    value: unknown;
+    isDefault: boolean;
+  }>;
 }

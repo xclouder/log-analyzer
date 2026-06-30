@@ -55,6 +55,13 @@ import {
   IPC_WINDOW_CLOSE,
   IPC_WINDOW_IS_MAXIMIZED,
   IPC_MENU_SAVE_FILE,
+  IPC_CONFIG_GET_ALL,
+  IPC_CONFIG_SET_VALUE,
+  IPC_CONFIG_RESET_VALUE,
+  IPC_EDITOR_GET_SELECTED_TEXT,
+  IPC_EDITOR_REGISTER_CONTEXT_MENU,
+  IPC_EDITOR_UNREGISTER_CONTEXT_MENU,
+  IPC_EDITOR_CONTEXT_MENU_ACTION,
 } from '../shared/ipc-channels';
 
 // ── Compute resource paths for renderer ────────────────────────────────────────
@@ -154,6 +161,19 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // ── Editor window (used by editor.html) ────────────────────────────────────
   onSetContent: (cb: Callback) => ipcRenderer.on(IPC_SET_CONTENT, cb),
   sendContentChanged: (content: string) => ipcRenderer.send(IPC_CONTENT_CHANGED, content),
+
+  // ── Configuration ─────────────────────────────────────────────────────────
+  configuration: {
+    getAll: () => ipcRenderer.invoke(IPC_CONFIG_GET_ALL),
+    setValue: (key: string, value: unknown) => ipcRenderer.invoke(IPC_CONFIG_SET_VALUE, key, value),
+    resetValue: (key: string) => ipcRenderer.invoke(IPC_CONFIG_RESET_VALUE, key),
+  },
+
+  // ── Editor context menu ─────────────────────────────────────────────────
+  onEditorRegisterContextMenu: (cb: Callback) => ipcRenderer.on(IPC_EDITOR_REGISTER_CONTEXT_MENU, cb),
+  onEditorUnregisterContextMenu: (cb: Callback) => ipcRenderer.on(IPC_EDITOR_UNREGISTER_CONTEXT_MENU, cb),
+  sendEditorContextMenuAction: (id: string, selectedText: string) =>
+    ipcRenderer.send(IPC_EDITOR_CONTEXT_MENU_ACTION, { id, selectedText }),
 
 });
 

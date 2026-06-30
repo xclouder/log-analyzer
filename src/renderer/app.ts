@@ -115,6 +115,12 @@ function createEditors(): void {
   // Expose for divider.ts layout recalculation (separate <script>)
   (window as any).editor = editor;
   (window as any).filteredEditor = filteredEditor;
+
+  // Expose editor instance for main process getSelectedText()
+  (window as any).__LA_editor = editor;
+
+  // Setup editor right-click context menu
+  setupEditorContextMenu();
 }
 
 // ─── Keyboard Shortcuts ──────────────────────────────────────────────────────
@@ -730,4 +736,125 @@ document.getElementById('timestampInput')?.addEventListener('keydown', (e) => {
 document.getElementById('readSizeInput')?.addEventListener('keydown', (e) => {
   if ((e as KeyboardEvent).key === 'Enter') void confirmReadLargeFile();
 });
+
+// ─── Editor Context Menu (plugin-contributed items) ──────────────────────────
+
+/** Plugin-contributed context menu items: id → label */
+const pluginContextMenuItems = new Map<string, string>();
+
+function setupEditorContextMenu(): void {
+  const editorContainer = document.getElementById('editor')!;
+
+  editorContainer.addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    // Get selected text from the editor
+    const selection = editor.getSelection();
+    const selectedText = selection ? editor.getModel()!.getValueInRange(selection) : '';
+
+    showEditorContextMenu(e.clientX, e.clientY, selectedText);
+  });
+
+  // Listen for plugin registrations
+  api.onEditorRegisterContextMenu((_event: unknown, data: { id: string; label: string }) => {
+    pluginContextMenuItems.set(data.id, data.label);
+  });
+
+  api.onEditorUnregisterContextMenu((_event: unknown, data: { id: string }) => {
+    pluginContextMenuItems.delete(data.id);
+  });
+}
+
+function showEditorContextMenu(x: number, y: number, selectedText: string): void {
+  // Remove any existing context menu
+  document.querySelectorAll('.editor-context-menu').forEach(el => el.remove());
+
+  // Build menu items
+  const items: Array<{ label: string; action: () => void; disabled?: boolean }> = [
+    {
+      label: '复制',
+      action: () => { document.execCommand('copy'); },
+      disabled: !selectedText,
+    },
+    {
+      label: '全选',
+      action: () => {
+        const model = editor.getModel();
+        if (model) {
+          editor.setSelection(model.getFullModelRange());
+        }
+      },
+    },
+  ];
+
+  // Add plugin-contributed items (with separator)
+  if (pluginContextMenuItems.size > 0) {
+    items.push({ label: '---', action: () => {}, disabled: true }); // separator
+    for (const [id, label] of pluginContextMenuItems) {
+      items.push({
+        label,
+        action: () => {
+          api.sendEditorContextMenuAction(id, selectedText);
+        },
+        disabled: !selectedText,
+      });
+    }
+  }
+
+  // Create menu DOM
+  const menu = document.createElement('div');
+  menu.className = 'editor-context-menu';
+  menu.style.cssText = `
+    position: fixed; left: ${x}px; top: ${y}px; z-index: 10000;
+    background: #252526; border: 1px solid #454545; border-radius: 4px;
+    padding: 4px 0; min-width: 180px; box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 13px; color: #cccccc;
+  `;
+
+  for (const item of items) {
+    if (item.label === '---') {
+      const sep = document.createElement('div');
+      sep.style.cssText = 'height: 1px; background: #454545; margin: 4px 0;';
+      menu.appendChild(sep);
+      continue;
+    }
+    const menuItem = document.createElement('div');
+    menuItem.textContent = item.label;
+    menuItem.style.cssText = `
+      padding: 6px 24px; cursor: ${item.disabled ? 'default' : 'pointer'};
+      color: ${item.disabled ? '#6a6a6a' : '#cccccc'};
+      white-space: nowrap;
+    `;
+    if (!item.disabled) {
+      menuItem.addEventListener('mouseenter', () => { menuItem.style.background = '#094771'; });
+      menuItem.addEventListener('mouseleave', () => { menuItem.style.background = 'transparent'; });
+      menuItem.addEventListener('click', () => {
+        item.action();
+        menu.remove();
+      });
+    }
+    menu.appendChild(menuItem);
+  }
+
+  document.body.appendChild(menu);
+
+  // Adjust position if menu goes out of viewport
+  const rect = menu.getBoundingClientRect();
+  if (rect.right > window.innerWidth) menu.style.left = `${window.innerWidth - rect.width - 4}px`;
+  if (rect.bottom > window.innerHeight) menu.style.top = `${window.innerHeight - rect.height - 4}px`;
+
+  // Close on click outside or Escape
+  const closeHandler = (ev: MouseEvent) => {
+    if (!menu.contains(ev.target as Node)) { menu.remove(); document.removeEventListener('mousedown', closeHandler); }
+  };
+  const escHandler = (ev: KeyboardEvent) => {
+    if (ev.key === 'Escape') { menu.remove(); document.removeEventListener('keydown', escHandler); }
+  };
+  setTimeout(() => {
+    document.addEventListener('mousedown', closeHandler);
+    document.addEventListener('keydown', escHandler);
+  }, 0);
+}
 

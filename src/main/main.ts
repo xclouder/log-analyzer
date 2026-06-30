@@ -11,6 +11,7 @@ import * as path from 'path';
 import { configureLogger, getLogger, shutdown as shutdownLogger } from './log-util';
 import { CommandManager } from './command-manager';
 import { PluginManager } from './plugin-manager';
+import { ConfigurationManager } from './configuration-manager';
 import { readFile } from './file-reader';
 import { registerFileIPC } from './ipc-file';
 import { registerDialogIPC } from './ipc-dialog';
@@ -24,8 +25,10 @@ import { initAutoUpdater, checkForUpdates } from './auto-updater';
 
 let mainWindow: BrowserWindow | null = null;
 let pluginManagerWindow: BrowserWindow | null = null;
+let settingsWindow: BrowserWindow | null = null;
 let pluginManager: PluginManager;
 let commandManager: CommandManager;
+let configurationManager: ConfigurationManager;
 let currentFilePath = '';
 let isLoggingEnabled = false;
 
@@ -116,6 +119,8 @@ function createWindow(): void {
     getMainWindow: () => mainWindow,
     getPluginManagerWindow: () => pluginManagerWindow,
     setPluginManagerWindow: (win) => { pluginManagerWindow = win; },
+    getSettingsWindow: () => settingsWindow,
+    setSettingsWindow: (win) => { settingsWindow = win; },
     isLoggingEnabled: () => isLoggingEnabled,
     setLoggingEnabled: (enabled) => { isLoggingEnabled = enabled; },
   });
@@ -123,7 +128,9 @@ function createWindow(): void {
   checkForUpdates();
 
   commandManager = new CommandManager();
-  pluginManager = new PluginManager(mainWindow, commandManager, () => currentFilePath);
+  configurationManager = new ConfigurationManager();
+  configurationManager.init();
+  pluginManager = new PluginManager(mainWindow, commandManager, () => currentFilePath, configurationManager);
   pluginManager.loadPlugins().then(() => {
     getLogger('Main').info('All plugins loaded');
   });
@@ -157,6 +164,7 @@ app.whenReady().then(async () => {
     registerMiscIPC({
       getCommandManager: () => commandManager,
       getPluginManager: () => pluginManager,
+      getConfigurationManager: () => configurationManager,
       getCurrentFilePath: () => currentFilePath,
       getMainWindow: () => mainWindow,
     });

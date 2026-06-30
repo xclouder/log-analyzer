@@ -15,6 +15,7 @@ import type { PluginContext } from './plugin-context';
 import { Disposable } from './plugin-context';
 import type { InputBoxOptions, MessageOptions, QuickPickOptions, DownloadProgress } from '../shared/types';
 import { CommandManager } from './command-manager';
+import type { ConfigurationManager, ScopedConfiguration } from './configuration-manager';
 import {
   IPC_PLUGIN_SHOW_INPUTBOX,
   IPC_PLUGIN_SHOW_QUICKPICK,
@@ -32,20 +33,35 @@ import {
   IPC_DOWNLOAD_ERROR,
   IPC_SET_CONTENT,
   IPC_CONTENT_CHANGED,
+  IPC_EDITOR_GET_SELECTED_TEXT,
+  IPC_EDITOR_REGISTER_CONTEXT_MENU,
+  IPC_EDITOR_UNREGISTER_CONTEXT_MENU,
+  IPC_EDITOR_CONTEXT_MENU_ACTION,
 } from '../shared/ipc-channels';
 
 export class PluginAPIImpl implements PluginAPI {
   private readonly mainWindow: BrowserWindow;
   private readonly commandManager: CommandManager;
+  private readonly configurationManager: ConfigurationManager;
   private readonly pluginWindows = new Map<string, BrowserWindow>();
   private readonly editorWindows = new Map<number, string>();
   private readonly _getCurrentFilePath: () => string;
   private contentChangedHandlerRegistered = false;
 
-  constructor(mainWindow: BrowserWindow, commandManager: CommandManager, getCurrentFilePath: () => string) {
+  /** Editor context menu items registered by plugins. id → { label, action } */
+  private readonly contextMenuItems = new Map<string, { label: string; action: (text: string) => void | Promise<void> }>();
+  private contextMenuActionHandlerRegistered = false;
+
+  constructor(
+    mainWindow: BrowserWindow,
+    commandManager: CommandManager,
+    getCurrentFilePath: () => string,
+    configurationManager: ConfigurationManager,
+  ) {
     this.mainWindow = mainWindow;
     this.commandManager = commandManager;
     this._getCurrentFilePath = getCurrentFilePath;
+    this.configurationManager = configurationManager;
     this.registerContentChangedHandler();
   }
 
@@ -290,6 +306,67 @@ export class PluginAPIImpl implements PluginAPI {
 
   getWindow(pluginId: string): BrowserWindow | undefined {
     return this.pluginWindows.get(pluginId);
+  }
+
+  // ── Editor ─────────────────────────────────────────────────────────────────
+
+  async getSelectedText(): Promise<string> {
+    if (!this.mainWindow?.webContents) return '';
+    return this.mainWindow.webContents.executeJavaScript(
+      `(function(){ const e = window.__LA_editor; if (!e) return ''; const s = e.getSelection(); if (!s) return ''; return e.getModel().getValueInRange(s); })()`,
+    ).catch(() => '');
+  }
+
+  registerEditorContextMenu(
+    context: PluginContext,
+    id: string,
+    label: string,
+    action: (selectedText: string) => void | Promise<void>,
+  ): void {
+    this.contextMenuItems.set(id, { label, action });
+
+    // Tell the renderer to add this context menu item
+    this.mainWindow?.webContents.send(IPC_EDITOR_REGISTER_CONTEXT_MENU, { id, label });
+
+    // Register a one-time global handler for context menu action events
+    if (!this.contextMenuActionHandlerRegistered) {
+      this.contextMenuActionHandlerRegistered = true;
+      ipcMain.on(IPC_EDITOR_CONTEXT_MENU_ACTION, async (_event, data: { id: string; selectedText: string }) => {
+        const item = this.contextMenuItems.get(data.id);
+        if (item) {
+          try {
+            await item.action(data.selectedText);
+          } catch (err) {
+            console.error(`[PluginAPI] Context menu action error (${data.id}):`, err);
+          }
+        }
+      });
+    }
+
+    // Cleanup on deactivation
+    const disposable = new Disposable(() => {
+      this.contextMenuItems.delete(id);
+      this.mainWindow?.webContents.send(IPC_EDITOR_UNREGISTER_CONTEXT_MENU, { id });
+    });
+    context.disposables.push(disposable);
+  }
+
+  // ── Configuration ─────────────────────────────────────────────────────────
+
+  getConfiguration(section: string): ScopedConfiguration {
+    return this.configurationManager.getConfiguration(section);
+  }
+
+  onDidChangeConfiguration(
+    listener: (e: { affectsConfiguration(section: string): boolean }) => void,
+  ): { dispose(): void } {
+    return this.configurationManager.onDidChangeConfiguration((changedKeys) => {
+      listener({
+        affectsConfiguration(section: string): boolean {
+          return changedKeys.some((k) => k === section || k.startsWith(section + '.'));
+        },
+      });
+    });
   }
 
   // ── Private helpers ─────────────────────────────────────────────────────────

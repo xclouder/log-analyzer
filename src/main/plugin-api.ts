@@ -72,4 +72,55 @@ export interface PluginAPI {
 
   /** Get a plugin-owned window by plugin ID. */
   getWindow(pluginId: string): BrowserWindow | undefined;
+
+  // ── Editor ─────────────────────────────────────────────────────────────────
+
+  /**
+   * Get the currently selected text in the main editor.
+   * Returns an empty string if nothing is selected.
+   */
+  getSelectedText(): Promise<string>;
+
+  /**
+   * Register a context menu item in the editor's right-click menu.
+   * The item is shown when the user right-clicks in the editor.
+   *
+   * @param context  Plugin context (for auto-cleanup on deactivation)
+   * @param id       Unique identifier for this menu item
+   * @param label    Display text shown in the context menu
+   * @param action   Callback invoked when the user clicks the menu item.
+   *                 Receives the selected text as the first argument.
+   */
+  registerEditorContextMenu(
+    context: PluginContext,
+    id: string,
+    label: string,
+    action: (selectedText: string) => void | Promise<void>,
+  ): void;
+
+  // ── Configuration ─────────────────────────────────────────────────────────
+
+  /**
+   * Get a scoped configuration object for the given section.
+   *
+   * Example:
+   * ```ts
+   * const config = api.getConfiguration('myPlugin');
+   * const timeout = config.get<number>('timeout', 30);
+   * ```
+   */
+  getConfiguration(section: string): {
+    get<T>(key: string, defaultValue?: T): T;
+    update(key: string, value: unknown): Promise<void>;
+    has(key: string): boolean;
+  };
+
+  /**
+   * Register a listener that fires when any configuration value changes.
+   * The callback receives an object with an `affectsConfiguration(section)` helper.
+   * Returns a Disposable that removes the listener.
+   */
+  onDidChangeConfiguration(
+    listener: (e: { affectsConfiguration(section: string): boolean }) => void,
+  ): { dispose(): void };
 }

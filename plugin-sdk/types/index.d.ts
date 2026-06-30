@@ -66,6 +66,8 @@ export interface PluginMetadata {
   author: string;
   title?: string;
   description?: string;
+  defaultEnabled?: boolean;
+  enabled: boolean;
   isBuiltin: boolean;
   path: string;
   engines?: { loganalyzer?: string };

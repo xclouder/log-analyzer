@@ -1,0 +1,77 @@
+{
+  "name": "analyze-log-exception",
+  "version": "1.0.0",
+  "description": "使用LLM分析Editor中选中的日志异常，结合源码进行智能诊断",
+  "title": "日志异常分析",
+  "author": "loganalyzer",
+  "license": "MIT",
+  "main": "index.js",
+  "defaultEnabled": false,
+  "engines": { "loganalyzer": "^1.0.0" },
+  "contributes": {
+    "commands": [
+      { "command": "loganalyzer.analyzeLogException", "title": "分析选中日志异常", "category": "日志分析" }
+    ],
+    "configuration": {
+      "title": "日志异常分析 (LLM)",
+      "properties": {
+        "analyzeLogException.apiBaseUrl": {
+          "type": "string",
+          "default": "http://v2.open.venus.oa.com/llmproxy",
+          "description": "LLM API 的 Base URL（OpenAI 兼容接口）",
+          "order": 1
+        },
+        "analyzeLogException.apiKey": {
+          "type": "string",
+          "default": "",
+          "description": "LLM API Key（OPENAI_API_KEY）",
+          "order": 2
+        },
+        "analyzeLogException.model": {
+          "type": "string",
+          "default": "gemini-3-flash",
+          "description": "LLM 模型名称",
+          "enum": ["gemini-3-flash", "gpt-5.2", "deepseek-v3.2", "claude-opus-4-5-20251101", "gemini-3-pro-image", "gemini-3-pro", "gpt-5.1", "claude-4-5-sonnet-20250929", "gpt-5.4"],
+          "enumDescriptions": ["Gemini 3 Flash", "GPT-5.2", "DeepSeek V3.2", "Claude Opus 4.5", "Gemini 3 Pro Image", "Gemini 3 Pro", "GPT-5.1", "Claude 4.5 Sonnet", "GPT-5.4"],
+          "order": 3
+        },
+        "analyzeLogException.maxTokens": {
+          "type": "number",
+          "default": 4096,
+          "minimum": 256,
+          "maximum": 32768,
+          "description": "LLM 最大输出 Token 数",
+          "order": 4
+        },
+        "analyzeLogException.temperature": {
+          "type": "number",
+          "default": 0.3,
+          "minimum": 0,
+          "maximum": 2,
+          "description": "LLM 采样温度（越低越确定性，越高越随机）",
+          "order": 5
+        },
+        "analyzeLogException.sourceProjectDir": {
+          "type": "string",
+          "default": "",
+          "description": "源码工程目录路径（用于结合源码分析异常）",
+          "order": 6
+        },
+        "analyzeLogException.engineDir": {
+          "type": "string",
+          "default": "",
+          "description": "引擎目录路径（如 UE 引擎 Source 目录）",
+          "order": 7
+        },
+        "analyzeLogException.contextLines": {
+          "type": "number",
+          "default": 50,
+          "minimum": 10,
+          "maximum": 500,
+          "description": "自动扩展选中日志的上下文行数",
+          "order": 8
+        }
+      }
+    }
+  }
+}

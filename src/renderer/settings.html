@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Settings</title>
+  <style>
+    :root {
+      --bg-primary: #1e1e1e;
+      --bg-secondary: #252526;
+      --bg-input: #3c3c3c;
+      --bg-hover: #2a2d2e;
+      --text-primary: #cccccc;
+      --text-secondary: #969696;
+      --text-muted: #6e6e6e;
+      --accent: #0078d4;
+      --accent-hover: #1a8beb;
+      --border: #3c3c3c;
+      --modified: #e2c08d;
+      --danger: #f14c4c;
+      --success: #89d185;
+      --invalid-bg: #5a1d1d;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background-color: var(--bg-primary);
+      color: var(--text-primary);
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    /* ── Header / Search bar ────────────────────────────────────────── */
+    .settings-header {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      background: var(--bg-secondary);
+      padding: 16px 24px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .settings-header h1 {
+      font-size: 18px;
+      font-weight: 500;
+      margin-bottom: 12px;
+      color: var(--text-primary);
+    }
+
+    .search-wrapper {
+      position: relative;
+    }
+
+    .search-wrapper::before {
+      content: '🔍';
+      position: absolute;
+      left: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 13px;
+      opacity: 0.6;
+    }
+
+    #searchInput {
+      width: 100%;
+      padding: 7px 12px 7px 34px;
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--text-primary);
+      font-size: 13px;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+
+    #searchInput:focus {
+      border-color: var(--accent);
+    }
+
+    #searchInput::placeholder {
+      color: var(--text-muted);
+    }
+
+    /* ── Content ────────────────────────────────────────────────────── */
+    #settingsContainer {
+      padding: 8px 24px 32px;
+      max-width: 800px;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 60px 20px;
+      color: var(--text-secondary);
+      font-size: 14px;
+    }
+
+    /* ── Section ────────────────────────────────────────────────────── */
+    .settings-section {
+      margin-top: 24px;
+    }
+
+    .section-title {
+      font-size: 13px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--accent);
+      margin-bottom: 8px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    /* ── Setting item ───────────────────────────────────────────────── */
+    .setting-item {
+      padding: 12px 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .setting-item:last-child {
+      border-bottom: none;
+    }
+
+    .setting-item:hover {
+      background: var(--bg-hover);
+      margin: 0 -12px;
+      padding: 12px 12px;
+      border-radius: 4px;
+    }
+
+    .setting-label-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 4px;
+    }
+
+    .setting-key {
+      font-weight: 600;
+      font-size: 13px;
+      color: var(--text-primary);
+      font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    }
+
+    .modified-badge {
+      font-size: 11px;
+      padding: 1px 6px;
+      border-radius: 3px;
+      background: rgba(226, 192, 141, 0.15);
+      color: var(--modified);
+      font-weight: 500;
+    }
+
+    .reset-btn {
+      background: none;
+      border: none;
+      color: var(--text-secondary);
+      cursor: pointer;
+      font-size: 16px;
+      padding: 0 4px;
+      line-height: 1;
+      border-radius: 3px;
+      transition: color 0.15s, background 0.15s;
+    }
+
+    .reset-btn:hover {
+      color: var(--text-primary);
+      background: var(--bg-input);
+    }
+
+    .setting-description {
+      color: var(--text-secondary);
+      font-size: 12px;
+      margin-bottom: 8px;
+      line-height: 1.4;
+    }
+
+    /* ── Controls ────────────────────────────────────────────────────── */
+    .setting-control {
+      margin-top: 4px;
+    }
+
+    .setting-input,
+    .setting-select {
+      width: 100%;
+      max-width: 400px;
+      padding: 5px 8px;
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      color: var(--text-primary);
+      font-size: 13px;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+
+    .setting-input:focus,
+    .setting-select:focus {
+      border-color: var(--accent);
+    }
+
+    .setting-input[type="number"] {
+      max-width: 160px;
+    }
+
+    .setting-textarea {
+      width: 100%;
+      max-width: 500px;
+      padding: 8px;
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      color: var(--text-primary);
+      font-size: 12px;
+      font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+      outline: none;
+      resize: vertical;
+      transition: border-color 0.15s;
+    }
+
+    .setting-textarea:focus {
+      border-color: var(--accent);
+    }
+
+    .setting-textarea.invalid {
+      border-color: var(--danger);
+      background: var(--invalid-bg);
+    }
+
+    /* ── Checkbox ────────────────────────────────────────────────────── */
+    .checkbox-label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      font-size: 13px;
+      color: var(--text-primary);
+    }
+
+    .checkbox-label input[type="checkbox"] {
+      appearance: none;
+      -webkit-appearance: none;
+      width: 18px;
+      height: 18px;
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      background: var(--bg-input);
+      cursor: pointer;
+      position: relative;
+      transition: background 0.15s, border-color 0.15s;
+    }
+
+    .checkbox-label input[type="checkbox"]:checked {
+      background: var(--accent);
+      border-color: var(--accent);
+    }
+
+    .checkbox-label input[type="checkbox"]:checked::after {
+      content: '✓';
+      position: absolute;
+      top: -1px;
+      left: 3px;
+      color: white;
+      font-size: 13px;
+      font-weight: bold;
+    }
+
+    .checkbox-label input[type="checkbox"]:hover {
+      border-color: var(--accent-hover);
+    }
+
+    /* ── Select dropdown ─────────────────────────────────────────────── */
+    .setting-select {
+      appearance: none;
+      -webkit-appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M3 5l3 3 3-3' stroke='%23969696' fill='none'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 8px center;
+      padding-right: 28px;
+      cursor: pointer;
+    }
+
+    .setting-select option {
+      background: var(--bg-secondary);
+      color: var(--text-primary);
+    }
+  </style>
+</head>
+<body>
+  <div class="settings-header">
+    <h1>⚙ Settings</h1>
+    <div class="search-wrapper">
+      <input type="text" id="searchInput" placeholder="搜索设置项...">
+    </div>
+  </div>
+
+  <div id="settingsContainer">
+    <!-- Populated dynamically by settings.ts -->
+  </div>
+
+  <script src="../../dist/renderer/renderer/settings.js"></script>
+</body>
+</html>

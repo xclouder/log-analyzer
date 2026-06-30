@@ -82,3 +82,14 @@ export const IPC_WINDOW_IS_MAXIMIZED = 'window-is-maximized';
 
 // Menu save file (main → renderer, send)
 export const IPC_MENU_SAVE_FILE = 'menu:save-file';
+
+// Configuration system (renderer → main, invoke)
+export const IPC_CONFIG_GET_ALL = 'config:getAll';
+export const IPC_CONFIG_SET_VALUE = 'config:setValue';
+export const IPC_CONFIG_RESET_VALUE = 'config:resetValue';
+
+// Editor context menu (bidirectional)
+export const IPC_EDITOR_GET_SELECTED_TEXT = 'editor:getSelectedText';
+export const IPC_EDITOR_REGISTER_CONTEXT_MENU = 'editor:registerContextMenu';
+export const IPC_EDITOR_UNREGISTER_CONTEXT_MENU = 'editor:unregisterContextMenu';
+export const IPC_EDITOR_CONTEXT_MENU_ACTION = 'editor:contextMenuAction';
