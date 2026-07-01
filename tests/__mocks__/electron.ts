@@ -35,7 +35,7 @@ const BrowserWindow = jest.fn().mockImplementation(() => ({
   focus: jest.fn(),
   isDestroyed: jest.fn(() => false),
   close: jest.fn(),
-}));
+})) as any;
 
 BrowserWindow.getAllWindows = jest.fn(() => []);
 BrowserWindow.fromWebContents = jest.fn();

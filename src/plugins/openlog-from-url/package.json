@@ -11,6 +11,25 @@
     "commands": [
       { "command": "loganalyzer.openLogFromUrl", "title": "从URL打开日志", "category": "日志" }
     ],
-    "fileTypes": [".zip", ".gz", ".tar", ".7z"]
+    "fileTypes": [".zip", ".gz", ".tar", ".7z"],
+    "configuration": {
+      "title": "OpenLogFromUrl",
+      "properties": {
+        "openLogFromUrl.downloadMode": {
+          "type": "string",
+          "default": "cosLogDownloader",
+          "enum": ["cosLogDownloader", "http"],
+          "enumDescriptions": ["COS Log Downloader", "Built-in HTTP downloader"],
+          "description": "Download backend used when opening logs from URL.",
+          "order": 1
+        },
+        "openLogFromUrl.cosLogDownloaderPath": {
+          "type": "string",
+          "default": "E:\\CosLogDownloader.exe",
+          "description": "Path to CosLogDownloader.exe when using the COS Log Downloader backend.",
+          "order": 2
+        }
+      }
+    }
   }
 }

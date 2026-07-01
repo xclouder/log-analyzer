@@ -6,6 +6,7 @@
  */
 
 import { BrowserWindow, ipcMain, app } from 'electron';
+import { spawn } from 'child_process';
 import * as https from 'https';
 import * as http from 'http';
 import * as fs from 'fs';
@@ -38,6 +39,9 @@ import {
   IPC_EDITOR_UNREGISTER_CONTEXT_MENU,
   IPC_EDITOR_CONTEXT_MENU_ACTION,
 } from '../shared/ipc-channels';
+
+const LOG_DOWNLOAD_CONFIG_SECTION = 'openLogFromUrl';
+const DEFAULT_COS_LOG_DOWNLOADER_TIMEOUT_MS = 5 * 60 * 1000;
 
 export class PluginAPIImpl implements PluginAPI {
   private readonly mainWindow: BrowserWindow;
@@ -120,6 +124,18 @@ export class PluginAPIImpl implements PluginAPI {
   }
 
   async downloadFile(url: string, relativePath: string): Promise<string> {
+    const config = this.configurationManager.getConfiguration(LOG_DOWNLOAD_CONFIG_SECTION);
+    const downloadMode = config.get<'http' | 'cosLogDownloader'>('downloadMode', 'cosLogDownloader');
+
+    if (downloadMode === 'cosLogDownloader') {
+      const executablePath = config.get<string>('cosLogDownloaderPath');
+      return this.downloadFileWithCosLogDownloader(url, relativePath, executablePath);
+    }
+
+    return this.downloadFileWithHttp(url, relativePath);
+  }
+
+  private async downloadFileWithHttp(url: string, relativePath: string): Promise<string> {
     const cacheDir = this.getAppCacheDir();
     const downloadPath = path.join(cacheDir, relativePath);
     fs.mkdirSync(path.dirname(downloadPath), { recursive: true });
@@ -196,6 +212,171 @@ export class PluginAPIImpl implements PluginAPI {
 
       doRequest(url);
     });
+  }
+
+  private async downloadFileWithCosLogDownloader(
+    url: string,
+    relativePath: string,
+    executablePath: string,
+  ): Promise<string> {
+    const resolvedExecutablePath = executablePath?.trim();
+    if (!resolvedExecutablePath) {
+      throw new Error('COS log downloader path is not configured');
+    }
+
+    if (!fs.existsSync(resolvedExecutablePath)) {
+      throw new Error(`COS log downloader not found: ${resolvedExecutablePath}`);
+    }
+
+    const cacheDir = this.getAppCacheDir();
+    const downloadPath = path.join(cacheDir, relativePath);
+    const downloadDir = path.dirname(downloadPath);
+    const tempDir = path.join(downloadDir, `.cos-download-${Date.now()}-${Math.random().toString(16).slice(2)}`);
+    fs.mkdirSync(tempDir, { recursive: true });
+
+    try {
+      await this.runCosLogDownloader(
+        resolvedExecutablePath,
+        url,
+        tempDir,
+        relativePath,
+        DEFAULT_COS_LOG_DOWNLOADER_TIMEOUT_MS,
+      );
+      const downloadedPath = this.resolveCosLogDownloaderOutput(url, tempDir);
+      fs.mkdirSync(downloadDir, { recursive: true });
+
+      if (fs.existsSync(downloadPath)) {
+        fs.unlinkSync(downloadPath);
+      }
+      fs.renameSync(downloadedPath, downloadPath);
+
+      const totalSize = fs.statSync(downloadPath).size;
+      this.mainWindow?.webContents.send(IPC_DOWNLOAD_COMPLETE, {
+        url,
+        downloadPath: relativePath,
+        totalSize,
+      });
+      return downloadPath;
+    } catch (err) {
+      this.mainWindow?.webContents.send(IPC_DOWNLOAD_ERROR, {
+        url,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      throw err;
+    } finally {
+      this.removeDirectoryIfSafe(tempDir, downloadDir);
+    }
+  }
+
+  private runCosLogDownloader(
+    executablePath: string,
+    url: string,
+    outputDir: string,
+    relativePath: string,
+    timeoutMs: number,
+  ): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const child = spawn(executablePath, [url, '-o', outputDir], {
+        windowsHide: true,
+      });
+      let stderr = '';
+      let stdout = '';
+      let lastProgress = 0;
+
+      const handleOutput = (chunk: Buffer): void => {
+        const text = chunk.toString('utf8');
+        stdout += text;
+        const matches = text.match(/(\d{1,3})%/g);
+        if (!matches) return;
+
+        const value = Number(matches[matches.length - 1].replace('%', ''));
+        if (!Number.isFinite(value)) return;
+        const progress = Math.max(0, Math.min(100, value));
+        if (progress - lastProgress >= 5 || progress === 100) {
+          lastProgress = progress;
+          const info: DownloadProgress = {
+            url,
+            downloadedSize: 0,
+            totalSize: 0,
+            progress,
+            downloadPath: relativePath,
+          };
+          this.mainWindow?.webContents.send(IPC_DOWNLOAD_PROGRESS, info);
+        }
+      };
+
+      let settled = false;
+      const finish = (err?: Error): void => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        if (err) {
+          reject(err);
+        } else {
+          resolve();
+        }
+      };
+
+      const timer = setTimeout(() => {
+        child.kill();
+        finish(new Error(`COS log downloader timed out after ${Math.round(timeoutMs / 1000)}s`));
+      }, timeoutMs);
+
+      child.stdout?.on('data', handleOutput);
+      child.stderr?.on('data', (chunk: Buffer) => {
+        stderr += chunk.toString('utf8');
+      });
+      child.on('error', finish);
+      child.on('close', (code) => {
+        if (code === 0) {
+          finish();
+          return;
+        }
+        const details = (stderr || stdout).trim();
+        finish(new Error(`COS log downloader exited with code ${code}${details ? `: ${details}` : ''}`));
+      });
+    });
+  }
+
+  private resolveCosLogDownloaderOutput(url: string, tempDir: string): string {
+    const expectedName = this.getFileNameFromUrl(url);
+    const expectedPath = expectedName ? path.join(tempDir, expectedName) : '';
+    if (expectedPath && fs.existsSync(expectedPath)) {
+      return expectedPath;
+    }
+
+    const files = fs.readdirSync(tempDir)
+      .map((name) => path.join(tempDir, name))
+      .filter((filePath) => fs.statSync(filePath).isFile());
+
+    if (files.length === 1) {
+      return files[0];
+    }
+    if (files.length > 1) {
+      files.sort((a, b) => fs.statSync(b).mtimeMs - fs.statSync(a).mtimeMs);
+      return files[0];
+    }
+
+    throw new Error('COS log downloader completed but did not produce a file');
+  }
+
+  private getFileNameFromUrl(url: string): string {
+    try {
+      const parsed = new URL(url);
+      const pathname = decodeURIComponent(parsed.pathname.replace(/\/+$/, ''));
+      return path.basename(pathname);
+    } catch {
+      return path.basename(url.split('?')[0] ?? '');
+    }
+  }
+
+  private removeDirectoryIfSafe(targetDir: string, expectedParent: string): void {
+    const resolvedTarget = path.resolve(targetDir);
+    const resolvedParent = path.resolve(expectedParent);
+    if (!resolvedTarget.startsWith(resolvedParent + path.sep)) {
+      return;
+    }
+    fs.rmSync(resolvedTarget, { recursive: true, force: true });
   }
 
   // ── App paths ───────────────────────────────────────────────────────────────
