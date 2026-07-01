@@ -69,19 +69,18 @@ export class PluginManager {
   private async initPluginDirs(): Promise<void> {
     // __dirname at runtime = dist/main/main/ → project root = ../../../
     const projectRoot = path.join(__dirname, '..', '..', '..');
-    this._builtinPluginsDir = app.isPackaged
-      ? path.join(process.resourcesPath, 'plugins')
-      : path.join(projectRoot, 'src', 'plugins');
+    const appRoot = app.isPackaged ? app.getAppPath() : projectRoot;
+    this._builtinPluginsDir = path.join(appRoot, 'src', 'plugins');
 
     this._userPluginsDir = path.join(app.getPath('userData'), 'plugins');
     await fsPromises.mkdir(this._userPluginsDir, { recursive: true });
 
     // Register the SDK so that plugins anywhere can `require('loganalyzer-plugin-sdk')`.
     // In dev mode the SDK lives at <projectRoot>/plugin-sdk; in production it
-    // is bundled into node_modules via `"file:./plugin-sdk"` in package.json.
+    // is bundled into app.asar via build.files.
     // We resolve the SDK entry point once and inject it into Node's module
     // resolution so it works regardless of where the plugin directory is.
-    this.registerPluginSDK(projectRoot);
+    this.registerPluginSDK(appRoot);
 
     logger.info('Plugin directories:', {
       builtin: this._builtinPluginsDir,
